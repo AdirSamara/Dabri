@@ -1,5 +1,5 @@
 import React from 'react';
-import { I18nManager, TouchableOpacity, View } from 'react-native';
+import { I18nManager, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -10,6 +10,8 @@ import { ApiKeySettingsScreen } from './src/screens/ApiKeySettingsScreen';
 import { VoiceSpeedSettingsScreen } from './src/screens/VoiceSpeedSettingsScreen';
 import { AboutScreen } from './src/screens/AboutScreen';
 import { initializeServices } from './src/services';
+import { useDabriStore } from './src/store';
+import { lightTheme, darkTheme } from './src/utils/theme';
 
 // Force RTL for Hebrew UI
 if(!I18nManager.isRTL) {
@@ -30,23 +32,31 @@ export type RootStackParamList = {
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-function HamburgerIcon(): React.JSX.Element {
+function HamburgerIcon({ color }: { color: string }): React.JSX.Element {
   return (
     <View style={{ justifyContent: 'center', gap: 4 }}>
-      <View style={{ width: 18, height: 2, backgroundColor: '#666' }} />
-      <View style={{ width: 18, height: 2, backgroundColor: '#666' }} />
-      <View style={{ width: 18, height: 2, backgroundColor: '#666' }} />
+      <View style={{ width: 18, height: 2, backgroundColor: color }} />
+      <View style={{ width: 18, height: 2, backgroundColor: color }} />
+      <View style={{ width: 18, height: 2, backgroundColor: color }} />
     </View>
   );
 }
 
 function App(): React.JSX.Element {
+  const { isDarkMode, setDarkMode } = useDabriStore();
+  const theme = isDarkMode ? darkTheme : lightTheme;
+
   return (
     <SafeAreaProvider>
       <NavigationContainer>
         <Stack.Navigator
           initialRouteName="Home"
-          screenOptions={{ headerBackTitle: 'חזרה' }}
+          screenOptions={{
+            headerBackTitle: 'חזרה',
+            headerStyle: { backgroundColor: theme.headerBackground },
+            headerTintColor: theme.headerText,
+            contentStyle: { backgroundColor: theme.background },
+          }}
         >
           <Stack.Screen
             name="Home"
@@ -58,7 +68,35 @@ function App(): React.JSX.Element {
                   onPress={() => navigation.navigate('Settings')}
                   style={{ paddingHorizontal: 8, paddingVertical: 4 }}
                 >
-                  <HamburgerIcon />
+                  <HamburgerIcon color={theme.text} />
+                </TouchableOpacity>
+              ),
+              headerLeft: () => (
+                <TouchableOpacity
+                  onPress={() => setDarkMode(!isDarkMode)}
+                  style={{
+                    paddingHorizontal: 8,
+                    paddingVertical: 4,
+                  }}
+                >
+                  <View style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: 12,
+                    borderWidth: 2,
+                    borderColor: theme.text,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  }}>
+                    {isDarkMode && (
+                      <View style={{
+                        width: 7,
+                        height: 7,
+                        borderRadius: 3.5,
+                        backgroundColor: theme.text,
+                      }} />
+                    )}
+                  </View>
                 </TouchableOpacity>
               ),
             })}

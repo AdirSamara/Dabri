@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { VoiceStatus } from '../types';
+import { useTheme } from '../utils/theme';
 
 interface StatusIndicatorProps {
   status: VoiceStatus;
@@ -15,6 +16,29 @@ const STATUS_TEXT: Record<VoiceStatus, string> = {
 };
 
 export function StatusIndicator({ status, transcript }: StatusIndicatorProps): React.JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => StyleSheet.create({
+    container: {
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+    },
+    statusText: {
+      fontSize: 16,
+      color: theme.textSecondary,
+      writingDirection: 'rtl',
+      textAlign: 'center',
+    },
+    transcriptText: {
+      fontSize: 14,
+      color: theme.textTertiary,
+      marginTop: 4,
+      writingDirection: 'rtl',
+      textAlign: 'center',
+      fontStyle: 'italic',
+    },
+  }), [theme]);
+
   return (
     <View style={styles.container}>
       <Text style={styles.statusText}>{STATUS_TEXT[status]}</Text>
@@ -24,25 +48,3 @@ export function StatusIndicator({ status, transcript }: StatusIndicatorProps): R
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  statusText: {
-    fontSize: 16,
-    color: '#555',
-    writingDirection: 'rtl',
-    textAlign: 'center',
-  },
-  transcriptText: {
-    fontSize: 14,
-    color: '#888',
-    marginTop: 4,
-    writingDirection: 'rtl',
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
-});

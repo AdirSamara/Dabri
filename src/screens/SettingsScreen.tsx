@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   ScrollView,
   View,
@@ -10,8 +10,9 @@ import {
 import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { useDabriStore } from '../store';
 import AssistantBridge from '../native/AssistantBridge';
-import { SPEED_OPTIONS } from './VoiceSpeedSettingsScreen';
 import { RootStackParamList } from '../../App';
+import { SPEED_OPTIONS } from './VoiceSpeedSettingsScreen';
+import { useTheme } from '../utils/theme';
 
 interface SettingsRowProps {
   title: string;
@@ -21,12 +22,40 @@ interface SettingsRowProps {
 }
 
 function SettingsRow({ title, subtitle, onPress, dotColor }: SettingsRowProps): React.JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => StyleSheet.create({
+    row: {
+      height: 60,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+    },
+    chevron: { fontSize: 16, color: theme.textTertiary, marginLeft: 4 },
+    rowContent: { flex: 1, alignItems: 'flex-end' },
+    rowTitleLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    dot: { width: 8, height: 8, borderRadius: 4 },
+    rowTitle: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: theme.text,
+      writingDirection: 'rtl',
+      textAlign: 'right',
+    },
+    rowSubtitle: {
+      fontSize: 13,
+      color: theme.textSecondary,
+      writingDirection: 'rtl',
+      textAlign: 'right',
+      marginTop: 2,
+    },
+  }), [theme]);
+
   return (
     <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.7}>
-      {/* Left: chevron */}
       <Text style={styles.chevron}>{'<'}</Text>
-
-      {/* Right: content */}
       <View style={styles.rowContent}>
         <View style={styles.rowTitleLine}>
           {dotColor ? (
@@ -41,6 +70,12 @@ function SettingsRow({ title, subtitle, onPress, dotColor }: SettingsRowProps): 
 }
 
 export function SettingsScreen(): React.JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.background },
+    content: { paddingTop: 8 },
+  }), [theme]);
+
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { geminiApiKey, ttsSpeed } = useDabriStore();
   const [isDefaultAssistant, setIsDefaultAssistant] = useState(false);
@@ -94,55 +129,3 @@ export function SettingsScreen(): React.JSX.Element {
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  content: {
-    paddingTop: 8,
-  },
-  row: {
-    height: 60,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  chevron: {
-    fontSize: 16,
-    color: '#aaa',
-    marginLeft: 4,
-  },
-  rowContent: {
-    flex: 1,
-    alignItems: 'flex-end',
-  },
-  rowTitleLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  rowTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1A1A1A',
-    writingDirection: 'rtl',
-    textAlign: 'right',
-  },
-  rowSubtitle: {
-    fontSize: 13,
-    color: '#666666',
-    writingDirection: 'rtl',
-    textAlign: 'right',
-    marginTop: 2,
-  },
-});

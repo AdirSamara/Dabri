@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   SafeAreaView,
   View,
@@ -18,8 +18,56 @@ import { ConversationLog } from '../components/ConversationLog';
 import { generateId } from '../utils/hebrewUtils';
 import { ConversationEntry } from '../types';
 import AssistantBridge from '../native/AssistantBridge';
+import { useTheme } from '../utils/theme';
 
 export function HomeScreen(): React.JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.background },
+    header: {
+      alignItems: 'center',
+      paddingVertical: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+    },
+    title: {
+      fontSize: 28,
+      fontWeight: 'bold',
+      textAlign: 'center',
+      color: theme.text,
+    },
+    stopButton: {
+      marginTop: 12,
+      backgroundColor: '#FF3B30',
+      paddingVertical: 10,
+      paddingHorizontal: 20,
+      borderRadius: 10,
+    },
+    stopText: {
+      color: '#fff',
+      fontWeight: 'bold',
+      fontSize: 14,
+    },
+    mainContent: { flex: 1 },
+    conversationContainer: { flex: 1 },
+    micTopSection: { padding: 20, alignItems: 'center' },
+    divider: { height: 1, backgroundColor: theme.border, width: '100%' },
+    emptyState: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    greeting: { fontSize: 32, marginBottom: 20 },
+    chips: { flexDirection: 'row', gap: 10, marginTop: 20 },
+    chip: {
+      backgroundColor: theme.chipBackground,
+      borderRadius: 50,
+      paddingHorizontal: 18,
+      paddingVertical: 10,
+    },
+    chipText: { fontSize: 14, color: theme.text },
+  }), [theme]);
+
   const {
     voiceStatus,
     lastTranscript,
@@ -166,7 +214,6 @@ export function HomeScreen(): React.JSX.Element {
                     <View style={styles.micTopSection}>
                       <MicButton status={voiceStatus} onPress={handleMicPress} />
 
-                      {/* ✅ NEW STOP BUTTON */}
                       {voiceStatus === 'speaking' && (
                           <TouchableOpacity
                               style={styles.stopButton}
@@ -190,7 +237,6 @@ export function HomeScreen(): React.JSX.Element {
 
                 <MicButton status={voiceStatus} onPress={handleMicPress} />
 
-                {/* ✅ גם ב-empty */}
                 {voiceStatus === 'speaking' && (
                     <TouchableOpacity
                         style={styles.stopButton}
@@ -225,52 +271,3 @@ export function HomeScreen(): React.JSX.Element {
       </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
-  header: {
-    alignItems: 'center',
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-
-  stopButton: {
-    marginTop: 12,
-    backgroundColor: '#FF3B30',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-  },
-  stopText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-
-  mainContent: { flex: 1 },
-  conversationContainer: { flex: 1 },
-  micTopSection: { padding: 20, alignItems: 'center' },
-  divider: { height: 1, backgroundColor: '#F0F0F0', width: '100%' },
-
-  emptyState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  greeting: { fontSize: 32, marginBottom: 20 },
-
-  chips: { flexDirection: 'row', gap: 10, marginTop: 20 },
-  chip: {
-    backgroundColor: '#F8F9FA',
-    borderRadius: 50,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-  },
-  chipText: { fontSize: 14 },
-});

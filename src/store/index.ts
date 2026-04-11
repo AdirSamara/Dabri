@@ -26,6 +26,7 @@ interface DabriState {
   // Settings (persisted)
   geminiApiKey: string;
   ttsSpeed: number;
+  isDarkMode: boolean;
   contactAliases: Record<string, string>;
 
   // Actions
@@ -39,6 +40,7 @@ interface DabriState {
   removeReminder: (id: string) => void;
   setGeminiApiKey: (key: string) => void;
   setTtsSpeed: (speed: number) => void;
+  setDarkMode: (dark: boolean) => void;
   setContactAlias: (name: string, alias: string) => void;
   removeContactAlias: (name: string) => void;
 }
@@ -54,6 +56,7 @@ export const useDabriStore = create<DabriState>()(
       reminders: [],
       geminiApiKey: '',
       ttsSpeed: 0.6,
+      isDarkMode: false,
       contactAliases: {},
 
       // Actions
@@ -96,6 +99,8 @@ export const useDabriStore = create<DabriState>()(
 
       setTtsSpeed: (speed) => set({ ttsSpeed: speed }),
 
+      setDarkMode: (dark) => set({ isDarkMode: dark }),
+
       setContactAlias: (name, alias) =>
         set((state) => ({
           contactAliases: { ...state.contactAliases, [name]: alias },
@@ -114,6 +119,7 @@ export const useDabriStore = create<DabriState>()(
         reminders: state.reminders,
         geminiApiKey: state.geminiApiKey,
         ttsSpeed: state.ttsSpeed,
+        isDarkMode: state.isDarkMode,
         contactAliases: state.contactAliases,
       }),
       onRehydrateStorage: () => (state, error) => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   ScrollView,
   View,
@@ -10,8 +10,89 @@ import {
 } from 'react-native';
 import { Linking } from 'react-native';
 import AssistantBridge from '../native/AssistantBridge';
+import { useTheme } from '../utils/theme';
 
 export function AssistantSettingsScreen(): React.JSX.Element {
+  const theme = useTheme();
+  const styles = useMemo(() => StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.background },
+    content: { padding: 20, gap: 16 },
+    unavailable: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.background,
+    },
+    unavailableText: {
+      fontSize: 16,
+      color: theme.textSecondary,
+      writingDirection: 'rtl',
+      textAlign: 'right',
+    },
+    statusRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+      gap: 8,
+    },
+    statusDot: { width: 10, height: 10, borderRadius: 5 },
+    statusText: { fontSize: 16, fontWeight: '600', writingDirection: 'rtl', textAlign: 'right' },
+    benefitCard: {
+      backgroundColor: theme.benefitCardBackground,
+      borderRadius: 14,
+      padding: 16,
+      gap: 8,
+    },
+    benefitTitle: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: theme.benefitCardTitle,
+      writingDirection: 'rtl',
+      textAlign: 'right',
+    },
+    benefitBody: {
+      fontSize: 14,
+      color: theme.text,
+      writingDirection: 'rtl',
+      textAlign: 'right',
+      lineHeight: 22,
+    },
+    buttonPrimary: {
+      backgroundColor: '#2196F3',
+      borderRadius: 12,
+      paddingVertical: 14,
+      alignItems: 'center',
+    },
+    buttonPrimaryText: {
+      color: '#fff',
+      fontSize: 16,
+      fontWeight: '600',
+      writingDirection: 'rtl',
+    },
+    configuredContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    successBadge: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    successIcon: { fontSize: 20, color: '#4CAF50', fontWeight: '700' },
+    successText: { fontSize: 16, fontWeight: '700', color: '#4CAF50', writingDirection: 'rtl' },
+    buttonGhost: {
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      borderRadius: 8,
+      backgroundColor: theme.surfaceVariant,
+    },
+    buttonGhostText: { color: theme.textSecondary, fontSize: 13, writingDirection: 'rtl' },
+    hint: {
+      fontSize: 12,
+      color: theme.textTertiary,
+      writingDirection: 'rtl',
+      textAlign: 'right',
+      lineHeight: 18,
+    },
+  }), [theme]);
+
   const [isDefaultAssistant, setIsDefaultAssistant] = useState(false);
   const [checkingAssistantStatus, setCheckingAssistantStatus] = useState(true);
 
@@ -70,7 +151,6 @@ export function AssistantSettingsScreen(): React.JSX.Element {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
 
-      {/* Status row */}
       <View style={styles.statusRow}>
         <View
           style={[
@@ -90,7 +170,6 @@ export function AssistantSettingsScreen(): React.JSX.Element {
         </Text>
       </View>
 
-      {/* Benefit explanation card */}
       <View style={styles.benefitCard}>
         <Text style={styles.benefitTitle}>למה כדאי להפעיל?</Text>
         <Text style={styles.benefitBody}>
@@ -101,7 +180,6 @@ export function AssistantSettingsScreen(): React.JSX.Element {
         </Text>
       </View>
 
-      {/* Action buttons */}
       {isDefaultAssistant ? (
         <View style={styles.configuredContainer}>
           <View style={styles.successBadge}>
@@ -123,114 +201,3 @@ export function AssistantSettingsScreen(): React.JSX.Element {
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  content: {
-    padding: 20,
-    gap: 16,
-  },
-  unavailable: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-  },
-  unavailableText: {
-    fontSize: 16,
-    color: '#666666',
-    writingDirection: 'rtl',
-    textAlign: 'right',
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 8,
-  },
-  statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  statusText: {
-    fontSize: 16,
-    fontWeight: '600',
-    writingDirection: 'rtl',
-    textAlign: 'right',
-  },
-  benefitCard: {
-    backgroundColor: '#F0F7FF',
-    borderRadius: 14,
-    padding: 16,
-    gap: 8,
-  },
-  benefitTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1565C0',
-    writingDirection: 'rtl',
-    textAlign: 'right',
-  },
-  benefitBody: {
-    fontSize: 14,
-    color: '#333333',
-    writingDirection: 'rtl',
-    textAlign: 'right',
-    lineHeight: 22,
-  },
-  buttonPrimary: {
-    backgroundColor: '#2196F3',
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  buttonPrimaryText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    writingDirection: 'rtl',
-  },
-  configuredContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  successBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  successIcon: {
-    fontSize: 20,
-    color: '#4CAF50',
-    fontWeight: '700',
-  },
-  successText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#4CAF50',
-    writingDirection: 'rtl',
-  },
-  buttonGhost: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: '#F0F0F0',
-  },
-  buttonGhostText: {
-    color: '#888888',
-    fontSize: 13,
-    writingDirection: 'rtl',
-  },
-  hint: {
-    fontSize: 12,
-    color: '#999999',
-    writingDirection: 'rtl',
-    textAlign: 'right',
-    lineHeight: 18,
-  },
-});
