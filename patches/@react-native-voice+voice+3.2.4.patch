@@ -1,0 +1,68 @@
+diff --git a/node_modules/@react-native-voice/voice/android/build.gradle b/node_modules/@react-native-voice/voice/android/build.gradle
+index 8fce879..4f95232 100644
+--- a/node_modules/@react-native-voice/voice/android/build.gradle
++++ b/node_modules/@react-native-voice/voice/android/build.gradle
+@@ -2,14 +2,12 @@ apply plugin: 'com.android.library'
+ 
+ repositories {
+     mavenLocal()
+-    jcenter()
++    google()
++    mavenCentral()
+     maven {
+-        // For developing the library outside the context of the example app, expect `react-native`
+-        // to be installed at `./node_modules`.
+         url "$projectDir/../node_modules/react-native/android"
+     }
+     maven {
+-        // For developing the example app.
+         url "$projectDir/../../react-native/android"
+     }
+ }
+@@ -40,28 +38,25 @@ android {
+ buildscript {
+     if (project == rootProject) {
+         repositories {
+-            jcenter()
++            google()
++            mavenCentral()
+         }
+         dependencies {
+             classpath 'com.android.tools.build:gradle:3.3.2'
+-
+-            // NOTE: Do not place your application dependencies here; they belong
+-            // in the individual module build.gradle files
+         }
+     }
+ }
+ 
+ allprojects {
+     repositories {
+-        jcenter()
++        google()
++        mavenCentral()
+     }
+ }
+ 
+-def supportVersion = rootProject.hasProperty('supportLibVersion') ? rootProject.supportLibVersion : DEFAULT_SUPPORT_LIB_VERSION
+-
+ dependencies {
+     implementation fileTree(dir: 'libs', include: ['*.jar'])
+     testImplementation 'junit:junit:4.12'
+-    implementation "com.android.support:appcompat-v7:${supportVersion}"
++    implementation 'androidx.appcompat:appcompat:1.6.1'
+     implementation 'com.facebook.react:react-native:+'
+ }
+diff --git a/node_modules/@react-native-voice/voice/android/src/main/java/com/wenkesj/voice/VoiceModule.java b/node_modules/@react-native-voice/voice/android/src/main/java/com/wenkesj/voice/VoiceModule.java
+index f22833e..b1d10b1 100644
+--- a/node_modules/@react-native-voice/voice/android/src/main/java/com/wenkesj/voice/VoiceModule.java
++++ b/node_modules/@react-native-voice/voice/android/src/main/java/com/wenkesj/voice/VoiceModule.java
+@@ -146,7 +146,7 @@ public class VoiceModule extends ReactContextBaseJavaModule implements Recogniti
+ 
+   @Override
+   public String getName() {
+-    return "RCTVoice";
++    return "Voice";
+   }
+ 
+   @ReactMethod
