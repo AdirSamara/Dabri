@@ -14,7 +14,7 @@ const Tts = NativeModules.TextToSpeech
     : null;
 
 // ✅ Only 3 options (with IDs)
-const SPEED_OPTIONS = [
+export const SPEED_OPTIONS = [
   { id: 'slow', label: 'לאט 🐢', value: 0.5 },
   { id: 'normal', label: 'רגיל 🙂', value: 0.6 },
   { id: 'fast', label: 'מהר ⚡', value: 0.8 },

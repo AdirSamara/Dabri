@@ -33,13 +33,46 @@ function smsCount(text: string): number {
 function parseIntentWithRegex(text: string): ParsedIntent {
   console.log('[intentParser] Using REGEX parser for:', text);
 
-  // 1. SEND_SMS
-  const sendSmsMatch = text.match(/שלח\s+הודעה\s+ל(.+?)\s+(.+)/);
-  if (sendSmsMatch) {
+  // 1. SEND_WHATSAPP — checked before SEND_SMS so "הודעה" verbs are claimed here first
+  const WA_VERBS =
+    '(?:תשלח|תשלחי|שלח|שלחי|לשלוח|תרשום|תרשמי|תכתוב|תכתבי|תגיד|תגידי|תודיע|תודיעי|תעביר|תעבירי)';
+  const WA_PLATFORM_INNER = '(?:וואטסאפ|ווצאפ|ווטסאפ|whatsapp)';
+  const WA_PLATFORM = `(?:ב|ה)?${WA_PLATFORM_INNER}`;
+
+  // Pattern A: prefix? + verb + optional(noun + platform | noun) + ל + contact + message
+  // prefix: אפשר, בבקשה, תוכל, תוכלי
+  // noun: הודעת (construct state) or הודעה (absolute), optionally followed by platform keyword
+  const sendWaPatternA = new RegExp(
+    `(?:(?:אפשר|בבקשה|תוכל|תוכלי)\\s+)?${WA_VERBS}\\s+` +
+    `(?:(?:(?:הודעת|הודעה)\\s+)?${WA_PLATFORM}\\s+|הודעה\\s+)?` +
+    `(?:ל|אל)([^?!.\\n]+?)\\s+ש?(.+)`,
+    'i',
+  );
+  // Pattern B: "לשלוח + optional noun + platform + ל..." form
+  const sendWaPatternB = new RegExp(
+    `לשלוח\\s+(?:(?:הודעת|הודעה)\\s+)?${WA_PLATFORM}\\s+(?:ל|אל)([^?!.\\n]+?)\\s+ש?(.+)`,
+    'i',
+  );
+  // Pattern C: implicit messaging verbs — never used for SMS/calls
+  // min 2 chars for contact to avoid capturing single-letter pronouns (לו/לה)
+  const sendWaPatternC = new RegExp(
+    `(?:תרשום|תרשמי|תכתוב|תכתבי|תגיד|תגידי|תודיע|תודיעי|תעביר|תעבירי)\\s+ל([^\\s?!.\\n]{2,})\\s+(.+)`,
+  );
+
+  const sendWaMatch =
+    sendWaPatternA.exec(text) ||
+    sendWaPatternB.exec(text) ||
+    sendWaPatternC.exec(text);
+
+  if (sendWaMatch) {
+    const rawMessage = sendWaMatch[2]
+      .replace(/^ש/, '')                                                      // strip leading ש conjunction
+      .replace(/\s+(?:ב|ה)?(?:וואטסאפ|ווצאפ|ווטסאפ|whatsapp)\s*$/i, '')    // strip platform keyword from end
+      .trim();
     return {
-      intent: 'SEND_SMS',
-      contact: sendSmsMatch[1].trim(),
-      message: sendSmsMatch[2].trim(),
+      intent: 'SEND_WHATSAPP',
+      contact: sendWaMatch[1].trim(),
+      message: rawMessage,
       appName: null,
       reminderText: null,
       reminderTime: null,
@@ -48,13 +81,13 @@ function parseIntentWithRegex(text: string): ParsedIntent {
     };
   }
 
-  // 2. SEND_WHATSAPP
-  const sendWaMatch = text.match(/שלח\s+(?:וואטסאפ|ווטסאפ|whatsapp)\s+ל(.+?)\s+(.+)/i);
-  if (sendWaMatch) {
+  // 2. SEND_SMS — explicit "שלח הודעה ל..." (unambiguous SMS)
+  const sendSmsMatch = text.match(/שלח\s+הודעה\s+ל(.+?)\s+(.+)/);
+  if (sendSmsMatch) {
     return {
-      intent: 'SEND_WHATSAPP',
-      contact: sendWaMatch[1].trim(),
-      message: sendWaMatch[2].trim(),
+      intent: 'SEND_SMS',
+      contact: sendSmsMatch[1].trim(),
+      message: sendSmsMatch[2].trim(),
       appName: null,
       reminderText: null,
       reminderTime: null,

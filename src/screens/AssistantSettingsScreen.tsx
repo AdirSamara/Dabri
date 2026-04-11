@@ -43,7 +43,7 @@ export function AssistantSettingsScreen(): React.JSX.Element {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleSetAsDefault = async () => {
+  const openAssistantSettings = async () => {
     try {
       await Linking.sendIntent('android.settings.MANAGE_DEFAULT_APPS_SETTINGS');
     } catch {
@@ -69,6 +69,8 @@ export function AssistantSettingsScreen(): React.JSX.Element {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+
+      {/* Status row */}
       <View style={styles.statusRow}>
         <View
           style={[
@@ -88,17 +90,36 @@ export function AssistantSettingsScreen(): React.JSX.Element {
         </Text>
       </View>
 
-      {!isDefaultAssistant && (
-        <TouchableOpacity style={styles.button} onPress={handleSetAsDefault}>
-          <Text style={styles.buttonText}>הגדר כעוזרת ברירת מחדל</Text>
-        </TouchableOpacity>
-      )}
+      {/* Benefit explanation card */}
+      <View style={styles.benefitCard}>
+        <Text style={styles.benefitTitle}>למה כדאי להפעיל?</Text>
+        <Text style={styles.benefitBody}>
+          כשדברי מוגדרת כעוזרת ברירת המחדל, לחיצה ארוכה על כפתור ההפעלה{' '}
+          תפתח אותה אוטומטית — בלי לחפש את האפליקציה.{'\n\n'}
+          פשוט לחץ לחיצה ארוכה ➜ דברי נפתחת ➜ דבר אליה.{'\n\n'}
+          מושלם בזמן נהיגה, בישול, או כשהידיים עסוקות.
+        </Text>
+      </View>
 
-      <Text style={styles.description}>
-        {isDefaultAssistant
-          ? 'לחץ לחיצה ארוכה על כפתור הבית כדי להפעיל את דברי מכל מקום'
-          : 'לחיצה ארוכה על כפתור הבית תפעיל את דברי אוטומטית'}
-      </Text>
+      {/* Action buttons */}
+      {isDefaultAssistant ? (
+        <View style={styles.configuredContainer}>
+          <View style={styles.successBadge}>
+            <Text style={styles.successIcon}>✓</Text>
+            <Text style={styles.successText}>מוגדר בהצלחה</Text>
+          </View>
+          <TouchableOpacity style={styles.buttonGhost} onPress={openAssistantSettings}>
+            <Text style={styles.buttonGhostText}>שנה עוזרת</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <>
+          <TouchableOpacity style={styles.buttonPrimary} onPress={openAssistantSettings}>
+            <Text style={styles.buttonPrimaryText}>הגדר כעוזרת ברירת מחדל</Text>
+          </TouchableOpacity>
+          <Text style={styles.hint}>לאחר הלחיצה תוכל לבחור את דברי מרשימת העוזרות</Text>
+        </>
+      )}
     </ScrollView>
   );
 }
@@ -110,6 +131,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
+    gap: 16,
   },
   unavailable: {
     flex: 1,
@@ -128,7 +150,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     gap: 8,
-    marginBottom: 20,
   },
   statusDot: {
     width: 10,
@@ -141,24 +162,75 @@ const styles = StyleSheet.create({
     writingDirection: 'rtl',
     textAlign: 'right',
   },
-  button: {
+  benefitCard: {
+    backgroundColor: '#F0F7FF',
+    borderRadius: 14,
+    padding: 16,
+    gap: 8,
+  },
+  benefitTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1565C0',
+    writingDirection: 'rtl',
+    textAlign: 'right',
+  },
+  benefitBody: {
+    fontSize: 14,
+    color: '#333333',
+    writingDirection: 'rtl',
+    textAlign: 'right',
+    lineHeight: 22,
+  },
+  buttonPrimary: {
     backgroundColor: '#2196F3',
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
-    marginBottom: 12,
   },
-  buttonText: {
+  buttonPrimaryText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
     writingDirection: 'rtl',
   },
-  description: {
+  configuredContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  successBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  successIcon: {
+    fontSize: 20,
+    color: '#4CAF50',
+    fontWeight: '700',
+  },
+  successText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#4CAF50',
+    writingDirection: 'rtl',
+  },
+  buttonGhost: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: '#F0F0F0',
+  },
+  buttonGhostText: {
+    color: '#888888',
     fontSize: 13,
-    color: '#666666',
+    writingDirection: 'rtl',
+  },
+  hint: {
+    fontSize: 12,
+    color: '#999999',
     writingDirection: 'rtl',
     textAlign: 'right',
-    lineHeight: 20,
+    lineHeight: 18,
   },
 });

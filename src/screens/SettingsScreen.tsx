@@ -10,6 +10,7 @@ import {
 import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { useDabriStore } from '../store';
 import AssistantBridge from '../native/AssistantBridge';
+import { SPEED_OPTIONS } from './VoiceSpeedSettingsScreen';
 import { RootStackParamList } from '../../App';
 
 interface SettingsRowProps {
@@ -82,7 +83,7 @@ export function SettingsScreen(): React.JSX.Element {
       />
       <SettingsRow
         title="מהירות דיבור"
-        subtitle={ttsSpeed.toFixed(1)}
+        subtitle={SPEED_OPTIONS.find(o => o.value === ttsSpeed)?.label ?? ttsSpeed.toFixed(1)}
         onPress={() => navigation.navigate('VoiceSpeedSettings')}
       />
       <SettingsRow
