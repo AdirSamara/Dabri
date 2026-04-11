@@ -29,11 +29,23 @@ const STATUS_COLORS = {
   pending: '#FF9800',
 };
 
+function getRelativeTime(timestamp: number): string {
+  const diff = Date.now() - timestamp;
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) { return 'עכשיו'; }
+  if (minutes === 1) { return 'לפני דקה'; }
+  if (minutes < 60) { return `לפני ${minutes} דקות`; }
+  return 'היום';
+}
+
 function ConversationItem({ item }: { item: ConversationEntry }): React.JSX.Element {
   const dotColor = STATUS_COLORS[item.status];
 
   return (
     <View style={styles.item}>
+      {/* Time */}
+      <Text style={styles.timeText}>{getRelativeTime(item.timestamp)}</Text>
+
       {/* User text */}
       <Text style={styles.userText}>{item.userText}</Text>
 
@@ -43,12 +55,11 @@ function ConversationItem({ item }: { item: ConversationEntry }): React.JSX.Elem
           <Text style={styles.intentLabel}>
             {INTENT_LABELS[item.parsedIntent.intent]}
           </Text>
-          <Text style={[
-            styles.sourceBadge,
-            item.parsedIntent.source === 'gemini' ? styles.sourceBadgeGemini : styles.sourceBadgeRegex,
-          ]}>
-            {item.parsedIntent.source === 'gemini' ? 'AI' : '~'}
-          </Text>
+          {item.parsedIntent.source === 'gemini' && (
+            <View style={styles.geminiSource}>
+              <Text style={styles.geminiSourceText}>✨ AI</Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -103,19 +114,30 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 16,
     paddingVertical: 8,
+    paddingBottom: 8,
   },
   item: {
-    backgroundColor: '#f9f9f9',
-    borderRadius: 12,
-    padding: 12,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 16,
+    padding: 16,
     marginVertical: 6,
-    borderWidth: 1,
-    borderColor: '#eee',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+  },
+  timeText: {
+    fontSize: 11,
+    color: '#666666',
+    writingDirection: 'rtl',
+    textAlign: 'right',
+    marginBottom: 6,
   },
   userText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#222',
+    color: '#1A1A1A',
     writingDirection: 'rtl',
     textAlign: 'right',
     marginBottom: 4,
@@ -133,21 +155,16 @@ const styles = StyleSheet.create({
     writingDirection: 'rtl',
     textAlign: 'right',
   },
-  sourceBadge: {
-    fontSize: 10,
-    fontWeight: '600',
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  sourceBadgeGemini: {
-    color: '#7C4DFF',
+  geminiSource: {
     backgroundColor: '#EDE7F6',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
-  sourceBadgeRegex: {
-    color: '#999',
-    backgroundColor: '#F0F0F0',
+  geminiSourceText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#7C4DFF',
   },
   resultRow: {
     flexDirection: 'row',

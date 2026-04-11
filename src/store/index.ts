@@ -53,7 +53,7 @@ export const useDabriStore = create<DabriState>()(
       recentNotifications: [],
       reminders: [],
       geminiApiKey: '',
-      ttsSpeed: 0.9,
+      ttsSpeed: 0.6,
       contactAliases: {},
 
       // Actions
@@ -116,6 +116,13 @@ export const useDabriStore = create<DabriState>()(
         ttsSpeed: state.ttsSpeed,
         contactAliases: state.contactAliases,
       }),
+      onRehydrateStorage: () => (state, error) => {
+        if (error) {
+          console.log('[Store] Rehydration error:', error);
+        } else if (state) {
+          console.log('[Store] Rehydrated - geminiApiKey:', state.geminiApiKey ? 'present' : 'empty');
+        }
+      },
     },
   ),
 );

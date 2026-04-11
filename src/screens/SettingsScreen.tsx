@@ -3,71 +3,60 @@ import {
   ScrollView,
   View,
   Text,
-  TextInput,
   TouchableOpacity,
-  ToastAndroid,
   StyleSheet,
-  ActivityIndicator,
-  Linking,
   AppState,
 } from 'react-native';
-import { GEMINI_API_URL, GEMINI_MODEL } from '../utils/constants';
+import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { useDabriStore } from '../store';
 import AssistantBridge from '../native/AssistantBridge';
+import { RootStackParamList } from '../../App';
 
-async function validateGeminiKey(apiKey: string): Promise<{ ok: boolean; status?: number; error?: string }> {
-  try {
-    const url = `${GEMINI_API_URL}/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
-    console.log('[validateGeminiKey] Testing URL:', `${GEMINI_API_URL}/${GEMINI_MODEL}:generateContent?key=***`);
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: 'say ok' }] }],
-        generationConfig: { maxOutputTokens: 4 },
-      }),
-    });
-    const body = await response.text();
-    console.log('[validateGeminiKey] Status:', response.status);
-    console.log('[validateGeminiKey] Body:', body.slice(0, 300));
-    // 429 = rate limited — key is valid but quota exceeded
-    const keyRecognized = response.ok || response.status === 429;
-    return { ok: keyRecognized, status: response.status };
-  } catch (e) {
-    const error = e instanceof Error ? e.message : String(e);
-    console.log('[validateGeminiKey] Network error:', error);
-    return { ok: false, error };
-  }
+interface SettingsRowProps {
+  title: string;
+  subtitle: string;
+  onPress: () => void;
+  dotColor?: string;
 }
 
-const TTS_SPEEDS = [0.7, 0.8, 0.9, 1.0, 1.1];
+function SettingsRow({ title, subtitle, onPress, dotColor }: SettingsRowProps): React.JSX.Element {
+  return (
+    <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.7}>
+      {/* Left: chevron */}
+      <Text style={styles.chevron}>{'<'}</Text>
+
+      {/* Right: content */}
+      <View style={styles.rowContent}>
+        <View style={styles.rowTitleLine}>
+          {dotColor ? (
+            <View style={[styles.dot, { backgroundColor: dotColor }]} />
+          ) : null}
+          <Text style={styles.rowTitle}>{title}</Text>
+        </View>
+        <Text style={styles.rowSubtitle}>{subtitle}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
 
 export function SettingsScreen(): React.JSX.Element {
-  const { geminiApiKey, setGeminiApiKey, ttsSpeed, setTtsSpeed } = useDabriStore();
-  const [apiKeyInput, setApiKeyInput] = useState(geminiApiKey);
-  const [validating, setValidating] = useState(false);
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+  const { geminiApiKey, ttsSpeed } = useDabriStore();
   const [isDefaultAssistant, setIsDefaultAssistant] = useState(false);
-  const [checkingAssistantStatus, setCheckingAssistantStatus] = useState(true);
 
   const checkAssistantStatus = async () => {
-    if (!AssistantBridge) {
-      setCheckingAssistantStatus(false);
-      return;
-    }
+    if (!AssistantBridge) { return; }
     try {
       const isDefault = await AssistantBridge.isDefaultAssistant();
       setIsDefaultAssistant(isDefault);
     } catch (e) {
       console.log('Error checking assistant status:', e);
-    } finally {
-      setCheckingAssistantStatus(false);
     }
   };
 
   useEffect(() => {
     checkAssistantStatus();
 
-    // Re-check when user returns from system Settings
     const subscription = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
         checkAssistantStatus();
@@ -75,178 +64,32 @@ export function SettingsScreen(): React.JSX.Element {
     });
 
     return () => subscription.remove();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const handleSetAsDefault = async () => {
-    try {
-      await Linking.sendIntent('android.settings.MANAGE_DEFAULT_APPS_SETTINGS');
-    } catch {
-      try {
-        await Linking.sendIntent('android.settings.SETTINGS');
-      } catch {
-        ToastAndroid.show('לא ניתן לפתוח הגדרות', ToastAndroid.SHORT);
-      }
-    }
-  };
-
-  const handleSaveApiKey = async () => {
-    const trimmed = apiKeyInput.trim();
-    if (!trimmed) {
-      setGeminiApiKey('');
-      ToastAndroid.show('המפתח נמחק', ToastAndroid.SHORT);
-      return;
-    }
-    setValidating(true);
-    const result = await validateGeminiKey(trimmed);
-    setValidating(false);
-    if (result.ok) {
-      setGeminiApiKey(trimmed);
-      ToastAndroid.show('המפתח תקין ונשמר ✓', ToastAndroid.SHORT);
-    } else if (result.error) {
-      ToastAndroid.show(`שגיאת רשת: ${result.error.slice(0, 40)}`, ToastAndroid.LONG);
-    } else {
-      ToastAndroid.show(`מפתח לא תקין (${result.status}), נסה שוב`, ToastAndroid.LONG);
-    }
-  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Default Assistant Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>עוזרת ברירת מחדל</Text>
-
-        <View style={styles.statusRow}>
-          <View
-            style={[
-              styles.statusDot,
-              { backgroundColor: isDefaultAssistant ? '#4CAF50' : '#F44336' },
-            ]}
-          />
-          <Text
-            style={[
-              styles.statusText,
-              { color: isDefaultAssistant ? '#4CAF50' : '#F44336' },
-            ]}
-          >
-            {isDefaultAssistant
-              ? 'דברי מוגדרת כעוזרת ברירת המחדל'
-              : 'דברי אינה העוזרת ברירת המחדל'}
-          </Text>
-        </View>
-
-        {!isDefaultAssistant && (
-          <>
-            <TouchableOpacity
-              style={styles.setDefaultButton}
-              onPress={handleSetAsDefault}
-            >
-              <Text style={styles.setDefaultButtonText}>
-                הגדר כעוזרת ברירת מחדל
-              </Text>
-            </TouchableOpacity>
-            <Text style={styles.description}>
-              לחיצה ארוכה על כפתור הבית תפעיל את דברי אוטומטית
-            </Text>
-          </>
-        )}
-
-        {isDefaultAssistant && (
-          <Text style={styles.description}>
-            לחץ לחיצה ארוכה על כפתור הבית כדי להפעיל את דברי מכל מקום
-          </Text>
-        )}
-      </View>
-
-      {/* API Key Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>מפתח Gemini API</Text>
-        <Text style={styles.description}>
-          {
-            'כדי להשתמש בניתוח פקודות מתקדם, הזן מפתח API מ-aistudio.google.com.\nללא מפתח, האפליקציה תשתמש בזיהוי בסיסי.'
-          }
-        </Text>
-        <TextInput
-          style={styles.apiKeyInput}
-          value={apiKeyInput}
-          onChangeText={setApiKeyInput}
-          placeholder="הזן מפתח API..."
-          autoCapitalize="none"
-          autoCorrect={false}
-          secureTextEntry={false}
-          placeholderTextColor="#aaa"
-        />
-        <TouchableOpacity
-          style={[styles.saveButton, validating && styles.saveButtonDisabled]}
-          onPress={handleSaveApiKey}
-          disabled={validating}
-        >
-          {validating
-            ? <ActivityIndicator color="#fff" size="small" />
-            : <Text style={styles.saveButtonText}>שמור מפתח</Text>
-          }
-        </TouchableOpacity>
-      </View>
-
-      {/* TTS Speed Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>מהירות דיבור</Text>
-        <View style={styles.speedRow}>
-          {TTS_SPEEDS.map((speed) => (
-            <TouchableOpacity
-              key={speed}
-              style={[
-                styles.speedButton,
-                ttsSpeed === speed && styles.speedButtonActive,
-              ]}
-              onPress={() => setTtsSpeed(speed)}
-            >
-              <Text
-                style={[
-                  styles.speedButtonText,
-                  ttsSpeed === speed && styles.speedButtonTextActive,
-                ]}
-              >
-                {speed.toFixed(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      {/* Key status */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>סטטוס מפתח</Text>
-        <View style={styles.statusRow}>
-          <View style={[styles.statusDot, { backgroundColor: geminiApiKey ? '#4CAF50' : '#F44336' }]} />
-          <Text style={[styles.statusText, { color: geminiApiKey ? '#4CAF50' : '#F44336' }]}>
-            {geminiApiKey ? 'מפתח פעיל' : 'לא הוגדר מפתח'}
-          </Text>
-        </View>
-        {geminiApiKey ? (
-          <>
-            <Text style={styles.keyPreview}>
-              {geminiApiKey.slice(0, 8)}{'•'.repeat(Math.min(geminiApiKey.length - 8, 20))}
-            </Text>
-            <TouchableOpacity
-              style={styles.deleteButton}
-              onPress={() => {
-                setGeminiApiKey('');
-                setApiKeyInput('');
-                ToastAndroid.show('המפתח נמחק', ToastAndroid.SHORT);
-              }}
-            >
-              <Text style={styles.deleteButtonText}>מחק מפתח</Text>
-            </TouchableOpacity>
-          </>
-        ) : null}
-      </View>
-
-      {/* About Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>אודות</Text>
-        <Text style={styles.aboutText}>דברי - העוזרת הקולית שלך</Text>
-        <Text style={styles.aboutVersion}>גרסה 1.0.0</Text>
-      </View>
+      <SettingsRow
+        title="עוזרת ברירת מחדל"
+        subtitle={isDefaultAssistant ? 'פעיל' : 'לא פעיל'}
+        dotColor={isDefaultAssistant ? '#4CAF50' : '#F44336'}
+        onPress={() => navigation.navigate('AssistantSettings')}
+      />
+      <SettingsRow
+        title="מפתח API"
+        subtitle={geminiApiKey ? 'פעיל' : 'לא מוגדר'}
+        onPress={() => navigation.navigate('ApiKeySettings')}
+      />
+      <SettingsRow
+        title="מהירות דיבור"
+        subtitle={ttsSpeed.toFixed(1)}
+        onPress={() => navigation.navigate('VoiceSpeedSettings')}
+      />
+      <SettingsRow
+        title="אודות"
+        subtitle="1.0.0"
+        onPress={() => navigation.navigate('About')}
+      />
     </ScrollView>
   );
 }
@@ -254,151 +97,51 @@ export function SettingsScreen(): React.JSX.Element {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
   },
   content: {
-    paddingVertical: 16,
+    paddingTop: 8,
   },
-  section: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1a1a1a',
-    writingDirection: 'rtl',
-    textAlign: 'right',
-    marginBottom: 8,
-  },
-  description: {
-    fontSize: 13,
-    color: '#666',
-    writingDirection: 'rtl',
-    textAlign: 'right',
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  apiKeyInput: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 13,
-    fontFamily: 'monospace',
-    color: '#333',
-    backgroundColor: '#fafafa',
-    textAlign: 'left',
-  },
-  saveButton: {
-    backgroundColor: '#2196F3',
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginTop: 12,
-  },
-  saveButtonDisabled: {
-    backgroundColor: '#90CAF9',
-  },
-  saveButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    writingDirection: 'rtl',
-  },
-  speedRow: {
+  row: {
+    height: 60,
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 8,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
   },
-  speedButton: {
+  chevron: {
+    fontSize: 16,
+    color: '#aaa',
+    marginLeft: 4,
+  },
+  rowContent: {
     flex: 1,
-    marginHorizontal: 4,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    alignItems: 'center',
-    backgroundColor: '#fafafa',
+    alignItems: 'flex-end',
   },
-  speedButtonActive: {
-    backgroundColor: '#2196F3',
-    borderColor: '#2196F3',
-  },
-  speedButtonText: {
-    fontSize: 14,
-    color: '#555',
-    fontWeight: '500',
-  },
-  speedButtonTextActive: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  statusRow: {
+  rowTitleLine: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
     gap: 8,
-    marginBottom: 12,
   },
-  statusDot: {
+  dot: {
     width: 8,
     height: 8,
     borderRadius: 4,
   },
-  statusText: {
-    fontSize: 15,
-    fontWeight: '600',
-    writingDirection: 'rtl',
-  },
-  setDefaultButton: {
-    backgroundColor: '#2196F3',
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  setDefaultButtonText: {
-    color: '#fff',
+  rowTitle: {
     fontSize: 16,
     fontWeight: '600',
-    writingDirection: 'rtl',
-  },
-  keyPreview: {
-    fontSize: 12,
-    color: '#aaa',
-    fontFamily: 'monospace',
-    textAlign: 'right',
-    marginTop: 6,
-    letterSpacing: 1,
-  },
-  deleteButton: {
-    marginTop: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#F44336',
-    alignItems: 'center',
-  },
-  deleteButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#F44336',
-  },
-  aboutText: {
-    fontSize: 15,
-    color: '#333',
+    color: '#1A1A1A',
     writingDirection: 'rtl',
     textAlign: 'right',
-    marginBottom: 4,
   },
-  aboutVersion: {
+  rowSubtitle: {
     fontSize: 13,
-    color: '#888',
+    color: '#666666',
     writingDirection: 'rtl',
     textAlign: 'right',
+    marginTop: 2,
   },
 });

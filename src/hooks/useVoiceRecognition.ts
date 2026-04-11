@@ -16,6 +16,10 @@ export function useVoiceRecognition({
   onResult,
 }: UseVoiceRecognitionProps): UseVoiceRecognitionReturn {
   const sttRef = useRef<AndroidSTT | null>(null);
+  // Keep a ref to always call the latest onResult, even if it changes after mount
+  const onResultRef = useRef(onResult);
+  onResultRef.current = onResult;
+
   const { setVoiceStatus, setLastTranscript } = useDabriStore();
 
   useEffect(() => {
@@ -33,7 +37,7 @@ export function useVoiceRecognition({
     stt.onResult((text) => {
       setLastTranscript(text);
       setVoiceStatus('processing');
-      onResult(text);
+      onResultRef.current(text);
     });
 
     stt.onError(() => {
@@ -82,9 +86,9 @@ export function useVoiceRecognition({
 
       setLastTranscript(hebrewMessage);
       // Short-circuit directly to the spoken response — skip intent parsing
-      onResult('\u200B' + hebrewMessage); // zero-width space prefix flags it as an error
+      onResultRef.current('\u200B' + hebrewMessage); // zero-width space prefix flags it as an error
     }
-  }, [setLastTranscript, setVoiceStatus, onResult]);
+  }, [setLastTranscript, setVoiceStatus]);
 
   const stopListening = useCallback(async () => {
     await sttRef.current?.stop();

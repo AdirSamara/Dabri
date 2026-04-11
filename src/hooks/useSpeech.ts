@@ -33,7 +33,7 @@ interface UseSpeechReturn {
   stopSpeaking: () => void;
 }
 
-export function useSpeech(): UseSpeechReturn {
+export function useSpeech(): UseSpeechReturn | null {
   const { ttsSpeed, setVoiceStatus } = useDabriStore();
 
   // One-time setup: language, pitch, and event listeners
@@ -70,10 +70,15 @@ export function useSpeech(): UseSpeechReturn {
       if (!Tts) {
         return;
       }
-      // Set status synchronously so mic button responds immediately
-      setVoiceStatus('speaking');
-      Tts.stop();
-      Tts.speak(text);
+      try {
+        // Set status synchronously so mic button responds immediately
+        setVoiceStatus('speaking');
+        Tts.stop();
+        Tts.speak(text);
+      } catch (e) {
+        console.log('[useSpeech] speak error:', e);
+        setVoiceStatus('idle');
+      }
     },
     [setVoiceStatus],
   );
@@ -82,9 +87,18 @@ export function useSpeech(): UseSpeechReturn {
     if (!Tts) {
       return;
     }
-    Tts.stop();
-    setVoiceStatus('idle');
+    try {
+      Tts.stop();
+      setVoiceStatus('idle');
+    } catch (e) {
+      console.log('[useSpeech] stopSpeaking error:', e);
+      setVoiceStatus('idle');
+    }
   }, [setVoiceStatus]);
+
+  if (!Tts) {
+    return null;
+  }
 
   return { speak, stopSpeaking };
 }

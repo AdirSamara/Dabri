@@ -1,8 +1,7 @@
 export const LOCALE_HEBREW = 'he-IL';
 export const TTS_RATE = 0.9;
 export const TTS_PITCH = 1.0;
-export const GEMINI_MODEL = 'gemini-2.0-flash';
-export const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
+export const GEMINI_MODEL = 'gemini-2.5-flash-lite';
 export const MAX_NOTIFICATIONS_BUFFER = 50;
 export const MAX_CONVERSATION_LOG = 100;
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   SafeAreaView,
   View,
@@ -13,7 +13,7 @@ import { useSpeech } from '../hooks/useSpeech';
 import { parseIntent } from '../services/intentParser';
 import { dispatchAction } from '../services/actionDispatcher';
 import { MicButton } from '../components/MicButton';
-import { StatusIndicator } from '../components/StatusIndicator';
+import { VoiceOverlay } from '../components/VoiceOverlay';
 import { ConversationLog } from '../components/ConversationLog';
 import { generateId } from '../utils/hebrewUtils';
 import { ConversationEntry } from '../types';
@@ -29,61 +29,77 @@ export function HomeScreen(): React.JSX.Element {
     updateConversation,
   } = useDabriStore();
 
-  const { speak, stopSpeaking } = useSpeech();
+  const speechResult = useSpeech();
+
+  const speak = useCallback(
+      (text: string) => {
+        try {
+          speechResult?.speak?.(text);
+        } catch (e) {
+          console.log('[HomeScreen] speak error:', e);
+        }
+      },
+      [speechResult],
+  );
+
+  const stopSpeaking = useCallback(() => {
+    try {
+      speechResult?.stopSpeaking?.();
+    } catch (e) {
+      console.log('[HomeScreen] stopSpeaking error:', e);
+    }
+  }, [speechResult]);
+
+  const [isOverlayVisible, setIsOverlayVisible] = useState(false);
 
   const handleVoiceResult = useCallback(
-    async (text: string) => {
-      // Zero-width space prefix signals a pre-translated error from the STT layer
-      if (text.startsWith('\u200B')) {
-        const errorMessage = text.slice(1);
+      async (text: string) => {
+        if (text.startsWith('\u200B')) {
+          const errorMessage = text.slice(1);
+          const id = generateId();
+          addConversation({
+            id,
+            userText: '⚠️',
+            parsedIntent: null,
+            result: errorMessage,
+            status: 'error',
+            timestamp: Date.now(),
+          });
+          speak(errorMessage);
+          return;
+        }
+
         const id = generateId();
-        addConversation({
+
+        const pendingEntry: ConversationEntry = {
           id,
-          userText: '⚠️',
+          userText: text,
           parsedIntent: null,
-          result: errorMessage,
-          status: 'error',
+          result: '',
+          status: 'pending',
           timestamp: Date.now(),
-        });
-        speak(errorMessage);
-        return;
-      }
+        };
+        addConversation(pendingEntry);
 
-      const id = generateId();
+        console.log('[HomeScreen] parseIntent - geminiApiKey:', geminiApiKey ? 'present' : 'missing');
+        const parsedIntent = await parseIntent(text, geminiApiKey);
+        updateConversation(id, { parsedIntent });
 
-      const pendingEntry: ConversationEntry = {
-        id,
-        userText: text,
-        parsedIntent: null,
-        result: '',
-        status: 'pending',
-        timestamp: Date.now(),
-      };
-      addConversation(pendingEntry);
+        if (parsedIntent.intent === 'UNKNOWN') {
+          const reply = 'לא הבנתי, אפשר לנסות שוב?';
+          updateConversation(id, { result: reply, status: 'error' });
+          speak(reply);
+          return;
+        }
 
-      // Parse intent
-      const parsedIntent = await parseIntent(text, geminiApiKey);
-      updateConversation(id, { parsedIntent });
-
-      if (parsedIntent.intent === 'UNKNOWN') {
-        const reply = 'לא הבנתי, אפשר לנסות שוב?';
+        const actionResult = await dispatchAction(parsedIntent);
         updateConversation(id, {
-          result: reply,
-          status: 'error',
+          result: actionResult.message,
+          status: actionResult.success ? 'success' : 'error',
         });
-        speak(reply);
-        return;
-      }
-
-      // Dispatch action
-      const actionResult = await dispatchAction(parsedIntent);
-      updateConversation(id, {
-        result: actionResult.message,
-        status: actionResult.success ? 'success' : 'error',
-      });
-      speak(actionResult.message);
-    },
-    [geminiApiKey, addConversation, updateConversation, speak],
+        speak(actionResult.message);
+      },
+      [geminiApiKey, addConversation, updateConversation, speak],
   );
 
   const { startListening, stopListening } = useVoiceRecognition({
@@ -96,32 +112,36 @@ export function HomeScreen(): React.JSX.Element {
     } else if (voiceStatus === 'speaking') {
       stopSpeaking();
     } else if (voiceStatus === 'idle') {
+      setIsOverlayVisible(true);
       startListening();
     }
-    // Ignore press during 'processing'
   }, [voiceStatus, startListening, stopListening, stopSpeaking]);
 
-  // Auto-listen when launched as default assistant (on mount + on foreground)
+  const handleOverlayClose = useCallback(() => {
+    stopListening();
+    stopSpeaking();
+    setIsOverlayVisible(false);
+  }, [stopListening]);
+
   const didCheckAssist = useRef(false);
 
   useEffect(() => {
     const checkAndListen = async () => {
-      if (!AssistantBridge || voiceStatus !== 'idle') {
-        return;
-      }
+      if (!AssistantBridge || voiceStatus !== 'idle') return;
       const launched = await AssistantBridge.wasLaunchedFromAssist();
       if (launched) {
-        setTimeout(() => startListening(), 500);
+        setTimeout(() => {
+          setIsOverlayVisible(true);
+          startListening();
+        }, 500);
       }
     };
 
-    // Check on mount
     if (!didCheckAssist.current) {
       didCheckAssist.current = true;
       checkAndListen();
     }
 
-    // Check when app comes back to foreground (handles singleTask re-launch)
     const subscription = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
         checkAndListen();
@@ -129,95 +149,128 @@ export function HomeScreen(): React.JSX.Element {
     });
 
     return () => subscription.remove();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const hasConversations = conversations.length > 0;
+
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>דברי</Text>
-        <Text style={styles.subtitle}>העוזרת הקולית שלך</Text>
-      </View>
-
-      {/* Conversation log */}
-      <View style={styles.conversationContainer}>
-        <ConversationLog conversations={conversations} />
-      </View>
-
-      {/* Bottom section */}
-      <View style={styles.bottomSection}>
-        <StatusIndicator status={voiceStatus} transcript={lastTranscript} />
-
-        {/* Stop button — visible only while speaking */}
-        {voiceStatus === 'speaking' && (
-          <TouchableOpacity style={styles.stopButton} onPress={stopSpeaking}>
-            <View style={styles.stopIcon} />
-          </TouchableOpacity>
-        )}
-
-        <View style={styles.micWrapper}>
-          <MicButton status={voiceStatus} onPress={handleMicPress} />
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>דברי</Text>
         </View>
-      </View>
-    </SafeAreaView>
+
+        <View style={styles.mainContent}>
+          {hasConversations ? (
+              <>
+                {!isOverlayVisible && (
+                    <View style={styles.micTopSection}>
+                      <MicButton status={voiceStatus} onPress={handleMicPress} />
+
+                      {/* ✅ NEW STOP BUTTON */}
+                      {voiceStatus === 'speaking' && (
+                          <TouchableOpacity
+                              style={styles.stopButton}
+                              onPress={stopSpeaking}
+                          >
+                            <Text style={styles.stopText}>עצור ⏹️</Text>
+                          </TouchableOpacity>
+                      )}
+
+                      <View style={styles.divider} />
+                    </View>
+                )}
+
+                <View style={styles.conversationContainer}>
+                  <ConversationLog conversations={conversations} />
+                </View>
+              </>
+          ) : (
+              <View style={styles.emptyState}>
+                <Text style={styles.greeting}>שלום!</Text>
+
+                <MicButton status={voiceStatus} onPress={handleMicPress} />
+
+                {/* ✅ גם ב-empty */}
+                {voiceStatus === 'speaking' && (
+                    <TouchableOpacity
+                        style={styles.stopButton}
+                        onPress={stopSpeaking}
+                    >
+                      <Text style={styles.stopText}>עצור ⏹️</Text>
+                    </TouchableOpacity>
+                )}
+
+                <View style={styles.chips}>
+                  <TouchableOpacity style={styles.chip} onPress={handleMicPress}>
+                    <Text style={styles.chipText}>שלח הודעה</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.chip} onPress={handleMicPress}>
+                    <Text style={styles.chipText}>תתקשר ל...</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.chip} onPress={handleMicPress}>
+                    <Text style={styles.chipText}>תקרא הודעות</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+          )}
+        </View>
+
+        <VoiceOverlay
+            visible={isOverlayVisible}
+            onClose={handleOverlayClose}
+            voiceStatus={voiceStatus}
+            transcript={lastTranscript}
+            onMicPress={handleMicPress}
+        />
+      </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
   header: {
     alignItems: 'center',
     paddingVertical: 16,
-    paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: '#F0F0F0',
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#1a1a1a',
-    writingDirection: 'rtl',
     textAlign: 'center',
   },
-  subtitle: {
-    fontSize: 14,
-    color: '#888',
-    marginTop: 4,
-    writingDirection: 'rtl',
-    textAlign: 'center',
-  },
-  conversationContainer: {
-    flex: 1,
-  },
-  bottomSection: {
-    paddingBottom: 24,
-    paddingTop: 12,
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-  },
-  micWrapper: {
-    marginTop: 12,
-  },
+
   stopButton: {
-    marginTop: 8,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f0f0f0',
+    marginTop: 12,
+    backgroundColor: '#FF3B30',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+  },
+  stopText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+
+  mainContent: { flex: 1 },
+  conversationContainer: { flex: 1 },
+  micTopSection: { padding: 20, alignItems: 'center' },
+  divider: { height: 1, backgroundColor: '#F0F0F0', width: '100%' },
+
+  emptyState: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#ddd',
   },
-  stopIcon: {
-    width: 14,
-    height: 14,
-    borderRadius: 2,
-    backgroundColor: '#555',
+  greeting: { fontSize: 32, marginBottom: 20 },
+
+  chips: { flexDirection: 'row', gap: 10, marginTop: 20 },
+  chip: {
+    backgroundColor: '#F8F9FA',
+    borderRadius: 50,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
   },
+  chipText: { fontSize: 14 },
 });
