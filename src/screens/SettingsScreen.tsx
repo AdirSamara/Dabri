@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ScrollView,
   View,
@@ -8,9 +8,12 @@ import {
   ToastAndroid,
   StyleSheet,
   ActivityIndicator,
+  Linking,
+  AppState,
 } from 'react-native';
 import { GEMINI_API_URL, GEMINI_MODEL } from '../utils/constants';
 import { useDabriStore } from '../store';
+import AssistantBridge from '../native/AssistantBridge';
 
 async function validateGeminiKey(apiKey: string): Promise<{ ok: boolean; status?: number; error?: string }> {
   try {
@@ -43,6 +46,48 @@ export function SettingsScreen(): React.JSX.Element {
   const { geminiApiKey, setGeminiApiKey, ttsSpeed, setTtsSpeed } = useDabriStore();
   const [apiKeyInput, setApiKeyInput] = useState(geminiApiKey);
   const [validating, setValidating] = useState(false);
+  const [isDefaultAssistant, setIsDefaultAssistant] = useState(false);
+  const [checkingAssistantStatus, setCheckingAssistantStatus] = useState(true);
+
+  const checkAssistantStatus = async () => {
+    if (!AssistantBridge) {
+      setCheckingAssistantStatus(false);
+      return;
+    }
+    try {
+      const isDefault = await AssistantBridge.isDefaultAssistant();
+      setIsDefaultAssistant(isDefault);
+    } catch (e) {
+      console.log('Error checking assistant status:', e);
+    } finally {
+      setCheckingAssistantStatus(false);
+    }
+  };
+
+  useEffect(() => {
+    checkAssistantStatus();
+
+    // Re-check when user returns from system Settings
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        checkAssistantStatus();
+      }
+    });
+
+    return () => subscription.remove();
+  }, []);
+
+  const handleSetAsDefault = async () => {
+    try {
+      await Linking.sendIntent('android.settings.MANAGE_DEFAULT_APPS_SETTINGS');
+    } catch {
+      try {
+        await Linking.sendIntent('android.settings.SETTINGS');
+      } catch {
+        ToastAndroid.show('לא ניתן לפתוח הגדרות', ToastAndroid.SHORT);
+      }
+    }
+  };
 
   const handleSaveApiKey = async () => {
     const trimmed = apiKeyInput.trim();
@@ -66,6 +111,52 @@ export function SettingsScreen(): React.JSX.Element {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {/* Default Assistant Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>עוזרת ברירת מחדל</Text>
+
+        <View style={styles.statusRow}>
+          <View
+            style={[
+              styles.statusDot,
+              { backgroundColor: isDefaultAssistant ? '#4CAF50' : '#F44336' },
+            ]}
+          />
+          <Text
+            style={[
+              styles.statusText,
+              { color: isDefaultAssistant ? '#4CAF50' : '#F44336' },
+            ]}
+          >
+            {isDefaultAssistant
+              ? 'דברי מוגדרת כעוזרת ברירת המחדל'
+              : 'דברי אינה העוזרת ברירת המחדל'}
+          </Text>
+        </View>
+
+        {!isDefaultAssistant && (
+          <>
+            <TouchableOpacity
+              style={styles.setDefaultButton}
+              onPress={handleSetAsDefault}
+            >
+              <Text style={styles.setDefaultButtonText}>
+                הגדר כעוזרת ברירת מחדל
+              </Text>
+            </TouchableOpacity>
+            <Text style={styles.description}>
+              לחיצה ארוכה על כפתור הבית תפעיל את דברי אוטומטית
+            </Text>
+          </>
+        )}
+
+        {isDefaultAssistant && (
+          <Text style={styles.description}>
+            לחץ לחיצה ארוכה על כפתור הבית כדי להפעיל את דברי מכל מקום
+          </Text>
+        )}
+      </View>
+
       {/* API Key Section */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>מפתח Gemini API</Text>
@@ -251,6 +342,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     gap: 8,
+    marginBottom: 12,
   },
   statusDot: {
     width: 8,
@@ -259,6 +351,19 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 15,
+    fontWeight: '600',
+    writingDirection: 'rtl',
+  },
+  setDefaultButton: {
+    backgroundColor: '#2196F3',
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  setDefaultButtonText: {
+    color: '#fff',
+    fontSize: 16,
     fontWeight: '600',
     writingDirection: 'rtl',
   },

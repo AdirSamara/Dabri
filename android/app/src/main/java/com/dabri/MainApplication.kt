@@ -1,6 +1,7 @@
 package com.dabri
 
 import android.app.Application
+import com.dabri.assistant.AssistantPackage
 import com.dabri.phone.PhonePackage
 import com.dabri.sms.SmsPackage
 import com.facebook.react.PackageList
@@ -18,6 +19,7 @@ class MainApplication : Application(), ReactApplication {
         PackageList(this).packages.apply {
           add(SmsPackage())
           add(PhonePackage())
+          add(AssistantPackage())
         },
     )
   }

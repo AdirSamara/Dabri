@@ -1,10 +1,11 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import {
   SafeAreaView,
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
+  AppState,
 } from 'react-native';
 import { useDabriStore } from '../store';
 import { useVoiceRecognition } from '../hooks/useVoiceRecognition';
@@ -16,6 +17,7 @@ import { StatusIndicator } from '../components/StatusIndicator';
 import { ConversationLog } from '../components/ConversationLog';
 import { generateId } from '../utils/hebrewUtils';
 import { ConversationEntry } from '../types';
+import AssistantBridge from '../native/AssistantBridge';
 
 export function HomeScreen(): React.JSX.Element {
   const {
@@ -98,6 +100,37 @@ export function HomeScreen(): React.JSX.Element {
     }
     // Ignore press during 'processing'
   }, [voiceStatus, startListening, stopListening, stopSpeaking]);
+
+  // Auto-listen when launched as default assistant (on mount + on foreground)
+  const didCheckAssist = useRef(false);
+
+  useEffect(() => {
+    const checkAndListen = async () => {
+      if (!AssistantBridge || voiceStatus !== 'idle') {
+        return;
+      }
+      const launched = await AssistantBridge.wasLaunchedFromAssist();
+      if (launched) {
+        setTimeout(() => startListening(), 500);
+      }
+    };
+
+    // Check on mount
+    if (!didCheckAssist.current) {
+      didCheckAssist.current = true;
+      checkAndListen();
+    }
+
+    // Check when app comes back to foreground (handles singleTask re-launch)
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        checkAndListen();
+      }
+    });
+
+    return () => subscription.remove();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>

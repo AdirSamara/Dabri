@@ -13,7 +13,7 @@ const Tts = isTtsAvailable ? (require('react-native-tts').default as typeof impo
 
 let ttsInitialized = false;
 
-async function initTts(rate: number): Promise<void> {
+async function initTts(): Promise<void> {
   if (!Tts || ttsInitialized) {
     return;
   }
@@ -25,7 +25,6 @@ async function initTts(rate: number): Promise<void> {
     await Tts.setDefaultLanguage('en-US').catch(() => {});
   }
 
-  await Tts.setDefaultRate(rate).catch(() => {});
   await Tts.setDefaultPitch(TTS_PITCH).catch(() => {});
 }
 
@@ -37,9 +36,9 @@ interface UseSpeechReturn {
 export function useSpeech(): UseSpeechReturn {
   const { ttsSpeed, setVoiceStatus } = useDabriStore();
 
-  // One-time setup: event listeners
+  // One-time setup: language, pitch, and event listeners
   useEffect(() => {
-    initTts(ttsSpeed);
+    initTts();
 
     if (!Tts) {
       return;
