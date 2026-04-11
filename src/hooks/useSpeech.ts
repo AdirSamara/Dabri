@@ -22,12 +22,6 @@ async function initTts(rate: number): Promise<void> {
   try {
     await Tts.setDefaultLanguage(LOCALE_HEBREW);
   } catch {
-    // Hebrew not installed — ask Android to download it, fall back to en-US
-    try {
-      await Tts.requestInstallData();
-    } catch {
-      // Install prompt not available; continue with device default
-    }
     await Tts.setDefaultLanguage('en-US').catch(() => {});
   }
 
@@ -66,7 +60,7 @@ export function useSpeech(): UseSpeechReturn {
 
   // Apply rate change immediately whenever the user updates it in settings
   useEffect(() => {
-    if (!Tts || !ttsInitialized) {
+    if (!Tts) {
       return;
     }
     Tts.setDefaultRate(ttsSpeed).catch(() => {});

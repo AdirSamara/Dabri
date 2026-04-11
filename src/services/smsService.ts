@@ -25,7 +25,7 @@ async function requestSendSmsPermission(): Promise<boolean> {
   return result === PermissionsAndroid.RESULTS.GRANTED;
 }
 
-async function handleReadSms(_intent: ParsedIntent): Promise<ActionResult> {
+async function handleReadSms(intent: ParsedIntent): Promise<ActionResult> {
   if (!SmsBridge) {
     return { success: false, message: 'מודול ה-SMS אינו זמין במכשיר זה' };
   }
@@ -36,7 +36,8 @@ async function handleReadSms(_intent: ParsedIntent): Promise<ActionResult> {
   }
 
   try {
-    const messages = await SmsBridge.readInbox(5);
+    const fetchCount = intent.count ?? 5;
+    const messages = await SmsBridge.readInbox(fetchCount);
 
     if (messages.length === 0) {
       return { success: true, message: 'אין הודעות חדשות' };
@@ -60,9 +61,12 @@ async function handleReadSms(_intent: ParsedIntent): Promise<ActionResult> {
     }
 
     const summary = parts.join('. ');
+    const prefix = fetchCount === 1
+      ? 'ההודעה האחרונה'
+      : `יש ${messages.length} הודעות`;
     return {
       success: true,
-      message: `יש ${messages.length} הודעות. ${summary}`,
+      message: `${prefix}. ${summary}`,
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'שגיאה לא ידועה';

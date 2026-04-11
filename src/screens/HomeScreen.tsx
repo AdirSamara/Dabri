@@ -3,6 +3,7 @@ import {
   SafeAreaView,
   View,
   Text,
+  TouchableOpacity,
   StyleSheet,
 } from 'react-native';
 import { useDabriStore } from '../store';
@@ -114,6 +115,14 @@ export function HomeScreen(): React.JSX.Element {
       {/* Bottom section */}
       <View style={styles.bottomSection}>
         <StatusIndicator status={voiceStatus} transcript={lastTranscript} />
+
+        {/* Stop button — visible only while speaking */}
+        {voiceStatus === 'speaking' && (
+          <TouchableOpacity style={styles.stopButton} onPress={stopSpeaking}>
+            <View style={styles.stopIcon} />
+          </TouchableOpacity>
+        )}
+
         <View style={styles.micWrapper}>
           <MicButton status={voiceStatus} onPress={handleMicPress} />
         </View>
@@ -160,5 +169,22 @@ const styles = StyleSheet.create({
   },
   micWrapper: {
     marginTop: 12,
+  },
+  stopButton: {
+    marginTop: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  stopIcon: {
+    width: 14,
+    height: 14,
+    borderRadius: 2,
+    backgroundColor: '#555',
   },
 });

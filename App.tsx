@@ -8,9 +8,10 @@ import { SettingsScreen } from './src/screens/SettingsScreen';
 import { initializeServices } from './src/services';
 
 // Force RTL for Hebrew UI
-I18nManager.forceRTL(true);
-I18nManager.allowRTL(true);
-
+if(!I18nManager.isRTL) {
+    I18nManager.forceRTL(true);
+    I18nManager.allowRTL(true);
+}
 // Initialize all action handlers and native listeners
 initializeServices();
 
