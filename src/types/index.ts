@@ -42,6 +42,9 @@ export interface Reminder {
   text: string;
   triggerTime: number;
   createdAt: number;
+  notificationId: string;
+  completed: boolean;
+  snoozedUntil: number | null;
 }
 
 export interface Contact {

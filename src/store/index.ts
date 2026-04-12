@@ -38,6 +38,9 @@ interface DabriState {
   addNotification: (notification: NotificationItem) => void;
   addReminder: (reminder: Reminder) => void;
   removeReminder: (id: string) => void;
+  updateReminder: (id: string, updates: Partial<Reminder>) => void;
+  completeReminder: (id: string) => void;
+  snoozeReminder: (id: string, minutes: number) => void;
   setGeminiApiKey: (key: string) => void;
   setTtsSpeed: (speed: number) => void;
   setDarkMode: (dark: boolean) => void;
@@ -94,6 +97,32 @@ export const useDabriStore = create<DabriState>()(
         set((state) => ({
           reminders: state.reminders.filter((r) => r.id !== id),
         })),
+
+      updateReminder: (id, updates) =>
+        set((state) => ({
+          reminders: state.reminders.map((r) =>
+            r.id === id ? { ...r, ...updates } : r,
+          ),
+        })),
+
+      completeReminder: (id) =>
+        set((state) => ({
+          reminders: state.reminders.map((r) =>
+            r.id === id ? { ...r, completed: true } : r,
+          ),
+        })),
+
+      snoozeReminder: (id, minutes) =>
+        set((state) => {
+          const snoozeTime = Date.now() + minutes * 60 * 1000;
+          return {
+            reminders: state.reminders.map((r) =>
+              r.id === id
+                ? { ...r, triggerTime: snoozeTime, snoozedUntil: snoozeTime }
+                : r,
+            ),
+          };
+        }),
 
       setGeminiApiKey: (key) => set({ geminiApiKey: key }),
 

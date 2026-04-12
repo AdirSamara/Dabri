@@ -3,6 +3,7 @@ package com.dabri
 import android.app.Application
 import com.dabri.assistant.AssistantPackage
 import com.dabri.phone.PhonePackage
+import com.dabri.reminder.ReminderPackage
 import com.dabri.sms.SmsPackage
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
@@ -20,6 +21,7 @@ class MainApplication : Application(), ReactApplication {
           add(SmsPackage())
           add(PhonePackage())
           add(AssistantPackage())
+          add(ReminderPackage())
         },
     )
   }

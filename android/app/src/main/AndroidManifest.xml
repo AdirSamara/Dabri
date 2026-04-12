@@ -20,6 +20,21 @@
     <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
 
+    <!-- Reminders: exact alarm scheduling (Android 12+ / API 31+) -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
+    <!-- Reminders: show notifications (Android 13+ / API 33+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Re-schedule reminders after device reboot -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- Wake lock for reliable alarm delivery -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- Request battery optimization exemption (Samsung One UI) -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
     <!-- Required on Android 11+ to detect WhatsApp installation via Linking.canOpenURL -->
     <queries>
         <package android:name="com.whatsapp" />
@@ -54,5 +69,23 @@
         </intent-filter>
         <meta-data android:name="com.android.systemui.action_assist_icon" android:resource="@mipmap/ic_launcher" />
       </activity>
+
+      <!-- Reminder receivers -->
+      <receiver
+          android:name=".reminder.ReminderAlarmReceiver"
+          android:enabled="true"
+          android:exported="false" />
+      <receiver
+          android:name=".reminder.ReminderActionReceiver"
+          android:enabled="true"
+          android:exported="false" />
+      <receiver
+          android:name=".reminder.ReminderBootReceiver"
+          android:enabled="true"
+          android:exported="true">
+          <intent-filter>
+              <action android:name="android.intent.action.BOOT_COMPLETED" />
+          </intent-filter>
+      </receiver>
     </application>
 </manifest>
