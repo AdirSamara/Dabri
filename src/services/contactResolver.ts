@@ -102,7 +102,8 @@ function scoreContactMatch(name: string): ScoredMatch {
     return { contact: prefix, tier: MatchTier.PREFIX };
   }
 
-  // Fuzzy (Levenshtein ≤ 2)
+  // Fuzzy — threshold scales with name length to avoid false matches on short names
+  const maxDistance = normalizedName.length <= 3 ? 1 : normalizedName.length <= 7 ? 2 : 3;
   let bestMatch: Contact | null = null;
   let bestDistance = Infinity;
   for (const contact of cachedContacts) {
@@ -115,7 +116,7 @@ function scoreContactMatch(name: string): ScoredMatch {
       bestMatch = contact;
     }
   }
-  if (bestDistance <= 2 && bestMatch) {
+  if (bestDistance <= maxDistance && bestMatch) {
     return { contact: bestMatch, tier: MatchTier.FUZZY };
   }
 
@@ -172,7 +173,7 @@ export async function resolveContactWithAlignment(
     if (scored.tier === MatchTier.NONE) {
       break; // No point extending further
     }
-    if (scored.tier > best.tier || (scored.tier === best.tier && scored.tier >= MatchTier.PREFIX)) {
+    if (scored.tier > best.tier || (scored.tier === best.tier && scored.tier >= MatchTier.FUZZY)) {
       best = scored;
       wordsConsumed = i;
     }
