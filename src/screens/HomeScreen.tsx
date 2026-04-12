@@ -23,6 +23,7 @@ import { generateId, normalizeHebrew } from '../utils/hebrewUtils';
 import { ConversationEntry, Reminder, Contact, SmsMessage } from '../types';
 import AssistantBridge from '../native/AssistantBridge';
 import { useTheme } from '../utils/theme';
+import { AppIcon } from '../components/AppIcon';
 
 // ── Disambiguation helpers ──────────────────────────────────────────
 const OPTION_LABELS = ['אחת', 'שתיים', 'שלוש'];
@@ -63,10 +64,13 @@ export function HomeScreen(): React.JSX.Element {
   const styles = useMemo(() => StyleSheet.create({
     container: { flex: 1, backgroundColor: theme.background },
     header: {
+      flexDirection: 'row',
       alignItems: 'center',
-      paddingVertical: 16,
+      justifyContent: 'center',
+      paddingVertical: 12,
       borderBottomWidth: 1,
       borderBottomColor: theme.border,
+      gap: 10,
     },
     title: {
       fontSize: 28,
@@ -83,7 +87,7 @@ export function HomeScreen(): React.JSX.Element {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    greeting: { fontSize: 32, marginBottom: 20 },
+    greeting: { fontSize: 32, marginTop: 16, marginBottom: 20, color: theme.text },
     chips: { flexDirection: 'row', gap: 10, marginTop: 20 },
     chip: {
       backgroundColor: theme.chipBackground,
@@ -375,6 +379,7 @@ export function HomeScreen(): React.JSX.Element {
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>דברי</Text>
+          <AppIcon size={36} />
         </View>
 
         <View style={styles.mainContent}>
@@ -402,6 +407,7 @@ export function HomeScreen(): React.JSX.Element {
               </>
           ) : (
               <View style={styles.emptyState}>
+                <AppIcon size={80} />
                 <Text style={styles.greeting}>שלום!</Text>
 
                 <MicButton status={voiceStatus} onPress={handleMicPress} />

@@ -19,9 +19,20 @@ const STATUS_COLORS: Record<VoiceStatus, string> = {
   speaking: '#4CAF50',
 };
 
+/** Base height ratios for the five waveform bars. */
+const BAR_RATIOS = [0.38, 0.68, 1, 0.58, 0.32];
+
+/** Each bar animates to a random target between these bounds (fraction of max). */
+const ANIM_MIN = 0.2;
+const ANIM_MAX = 1.0;
+
 export function MicButton({ status, onPress }: MicButtonProps): React.JSX.Element {
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
+  // One animated value per bar for the wave dance
+  const barAnims = useRef(BAR_RATIOS.map(() => new Animated.Value(1))).current;
+
+  // Pulse ring animation
   useEffect(() => {
     if (status === 'listening' || status === 'speaking') {
       const speed = status === 'listening' ? 600 : 900;
@@ -48,7 +59,61 @@ export function MicButton({ status, onPress }: MicButtonProps): React.JSX.Elemen
     }
   }, [status, pulseAnim]);
 
+  // Bar wave animation — each bar continuously bounces to random heights
+  useEffect(() => {
+    if (status === 'listening' || status === 'speaking') {
+      let cancelled = false;
+
+      const animateBar = (anim: Animated.Value) => {
+        if (cancelled) { return; }
+        const target = ANIM_MIN + Math.random() * (ANIM_MAX - ANIM_MIN);
+        const speed = status === 'listening' ? 150 + Math.random() * 200 : 300 + Math.random() * 300;
+        Animated.timing(anim, {
+          toValue: target,
+          duration: speed,
+          useNativeDriver: false, // height can't use native driver
+        }).start(() => animateBar(anim));
+      };
+
+      barAnims.forEach((anim) => animateBar(anim));
+
+      return () => {
+        cancelled = true;
+        barAnims.forEach((anim) => anim.stopAnimation());
+        // Smoothly reset to resting heights
+        Animated.parallel(
+          barAnims.map((anim) =>
+            Animated.timing(anim, {
+              toValue: 1,
+              duration: 300,
+              useNativeDriver: false,
+            }),
+          ),
+        ).start();
+      };
+    } else if (status === 'processing') {
+      // Gentle uniform pulse for processing
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(barAnims[2], { toValue: 0.5, duration: 400, useNativeDriver: false }),
+          Animated.timing(barAnims[2], { toValue: 1, duration: 400, useNativeDriver: false }),
+        ]),
+      );
+      loop.start();
+      return () => {
+        loop.stop();
+        barAnims[2].setValue(1);
+      };
+    } else {
+      barAnims.forEach((anim) => anim.setValue(1));
+      return undefined;
+    }
+  }, [status, barAnims]);
+
   const color = STATUS_COLORS[status];
+  const maxBarHeight = 28;
+  const barWidth = 5.5;
+  const barGap = 4;
 
   return (
     <View style={styles.container}>
@@ -74,14 +139,29 @@ export function MicButton({ status, onPress }: MicButtonProps): React.JSX.Elemen
           /* Stop icon (square) when TTS is speaking */
           <View style={styles.stopIcon} />
         ) : (
-          /* Mic icon made of Views */
-          <View style={styles.micContainer}>
-            {/* Mic body */}
-            <View style={[styles.micBody, { borderColor: '#fff', backgroundColor: '#fff' }]} />
-            {/* Mic base arc */}
-            <View style={[styles.micBase, { borderColor: '#fff' }]} />
-            {/* Mic stand */}
-            <View style={[styles.micStand, { backgroundColor: '#fff' }]} />
+          /* Waveform bars */
+          <View style={[styles.barsContainer, { gap: barGap }]}>
+            {BAR_RATIOS.map((ratio, i) => {
+              const restHeight = maxBarHeight * ratio;
+              // Animated height: barAnims[i] interpolates from rest height
+              const animatedHeight = barAnims[i].interpolate({
+                inputRange: [0, 1],
+                outputRange: [maxBarHeight * ANIM_MIN, restHeight],
+                extrapolate: 'clamp',
+              });
+
+              return (
+                <Animated.View
+                  key={i}
+                  style={{
+                    width: barWidth,
+                    height: animatedHeight,
+                    borderRadius: barWidth / 2,
+                    backgroundColor: `rgba(255,255,255,${0.65 + ratio * 0.35})`,
+                  }}
+                />
+              );
+            })}
           </View>
         )}
       </TouchableOpacity>
@@ -114,29 +194,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
   },
-  micContainer: {
+  barsContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  micBody: {
-    width: 14,
-    height: 24,
-    borderRadius: 7,
-  },
-  micBase: {
-    width: 24,
-    height: 12,
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
-    borderWidth: 2.5,
-    borderTopWidth: 0,
-    backgroundColor: 'transparent',
-    marginTop: -2,
-  },
-  micStand: {
-    width: 2.5,
-    height: 8,
-    marginTop: 0,
   },
   stopIcon: {
     width: 24,
