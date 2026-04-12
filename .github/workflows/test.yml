@@ -69,7 +69,7 @@ jobs:
           restore-keys: gradle-
 
       - name: Build debug APK
-        run: cd android && ./gradlew assembleDebug --no-daemon
+        run: cd android && chmod +x gradlew && ./gradlew assembleDebug --no-daemon
         timeout-minutes: 15
 
       - name: Install Maestro
@@ -150,7 +150,7 @@ jobs:
           restore-keys: gradle-
 
       - name: Build debug APK
-        run: cd android && ./gradlew assembleDebug --no-daemon
+        run: cd android && chmod +x gradlew && ./gradlew assembleDebug --no-daemon
         timeout-minutes: 15
 
       - name: Install Maestro
