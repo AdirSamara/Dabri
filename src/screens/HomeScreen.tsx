@@ -23,6 +23,7 @@ import { generateId, normalizeHebrew } from '../utils/hebrewUtils';
 import { ConversationEntry, Reminder, Contact, SmsMessage } from '../types';
 import AssistantBridge from '../native/AssistantBridge';
 import { useTheme } from '../utils/theme';
+import { AppIcon } from '../components/AppIcon';
 
 // ── Disambiguation helpers ──────────────────────────────────────────
 const OPTION_LABELS = ['אחת', 'שתיים', 'שלוש'];
@@ -63,10 +64,13 @@ export function HomeScreen(): React.JSX.Element {
   const styles = useMemo(() => StyleSheet.create({
     container: { flex: 1, backgroundColor: theme.background },
     header: {
+      flexDirection: 'row',
       alignItems: 'center',
-      paddingVertical: 16,
+      justifyContent: 'center',
+      paddingVertical: 12,
       borderBottomWidth: 1,
       borderBottomColor: theme.border,
+      gap: 10,
     },
     title: {
       fontSize: 28,
@@ -82,16 +86,53 @@ export function HomeScreen(): React.JSX.Element {
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
+      paddingHorizontal: 24,
+      gap: 0,
     },
-    greeting: { fontSize: 32, marginBottom: 20 },
-    chips: { flexDirection: 'row', gap: 10, marginTop: 20 },
-    chip: {
-      backgroundColor: theme.chipBackground,
-      borderRadius: 50,
+    tagline: {
+      fontSize: 22,
+      fontWeight: '700',
+      color: theme.text,
+      textAlign: 'center',
+      marginBottom: 8,
+    },
+    subTagline: {
+      fontSize: 14,
+      color: theme.textSecondary,
+      textAlign: 'center',
+      marginBottom: 40,
+    },
+    micWrapper: {
+      marginBottom: 44,
+    },
+    promptsLabel: {
+      fontSize: 12,
+      color: theme.textTertiary,
+      textAlign: 'center',
+      marginBottom: 12,
+      letterSpacing: 0.5,
+    },
+    promptsContainer: {
+      width: '100%',
+      gap: 10,
+    },
+    promptCard: {
+      backgroundColor: theme.surface,
+      borderRadius: 16,
       paddingHorizontal: 18,
-      paddingVertical: 10,
+      paddingVertical: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+      flexDirection: 'row-reverse',
+      alignItems: 'center',
+      gap: 10,
     },
-    chipText: { fontSize: 14, color: theme.text },
+    promptText: {
+      fontSize: 14,
+      color: theme.text,
+      textAlign: 'right',
+      flex: 1,
+    },
   }), [theme]);
 
   const {
@@ -339,7 +380,7 @@ export function HomeScreen(): React.JSX.Element {
     stopListening();
     stopSpeaking();
     setIsOverlayVisible(false);
-  }, [stopListening]);
+  }, [stopListening, stopSpeaking]);
 
   const didCheckAssist = useRef(false);
 
@@ -373,10 +414,6 @@ export function HomeScreen(): React.JSX.Element {
 
   return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.title}>דברי</Text>
-        </View>
-
         <View style={styles.mainContent}>
           {hasConversations ? (
               <>
@@ -402,19 +439,26 @@ export function HomeScreen(): React.JSX.Element {
               </>
           ) : (
               <View style={styles.emptyState}>
-                <Text style={styles.greeting}>שלום!</Text>
+                <Text style={styles.tagline}>מה אפשר לעשות בשבילך?</Text>
+                <Text style={styles.subTagline}>לחץ על המיקרופון ודבר</Text>
 
-                <MicButton status={voiceStatus} onPress={handleMicPress} />
+                <View style={styles.micWrapper}>
+                  <MicButton status={voiceStatus} onPress={handleMicPress} />
+                </View>
 
-                <View style={styles.chips}>
-                  <TouchableOpacity style={styles.chip} onPress={handleMicPress}>
-                    <Text style={styles.chipText}>שלח הודעה</Text>
+                <Text style={styles.promptsLabel}>למשל תוכל לומר...</Text>
+                <View style={styles.promptsContainer}>
+                  <TouchableOpacity style={styles.promptCard} onPress={handleMicPress}>
+                    <Text style={styles.promptText}>תתקשר לרון</Text>
+                    <Text>📞</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.chip} onPress={handleMicPress}>
-                    <Text style={styles.chipText}>תתקשר ל...</Text>
+                  <TouchableOpacity style={styles.promptCard} onPress={handleMicPress}>
+                    <Text style={styles.promptText}>שלח הודעה לנועם אני בדרך</Text>
+                    <Text>💬</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.chip} onPress={handleMicPress}>
-                    <Text style={styles.chipText}>תקרא הודעות</Text>
+                  <TouchableOpacity style={styles.promptCard} onPress={handleMicPress}>
+                    <Text style={styles.promptText}>תזכיר לי לקחת תרופה בשמונה</Text>
+                    <Text>⏰</Text>
                   </TouchableOpacity>
                 </View>
               </View>
