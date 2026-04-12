@@ -150,38 +150,31 @@ function handleListReminders(): ActionResult {
 function formatHebrewTimeDescription(date: Date): string {
   const now = new Date();
   const diffMs = date.getTime() - now.getTime();
-  const diffMin = Math.round(diffMs / 60000);
+  const diffHours = diffMs / 3_600_000;
 
-  if (diffMin < 1) return 'עכשיו';
+  const hh = date.getHours().toString().padStart(2, '0');
+  const mm = date.getMinutes().toString().padStart(2, '0');
+  const time24 = `${hh}:${mm}`;
 
-  if (diffMin < 60) {
-    return diffMin === 1 ? 'בעוד דקה' : `בעוד ${diffMin} דקות`;
-  }
-
-  const diffHours = Math.floor(diffMin / 60);
-  const remainingMin = diffMin % 60;
-
-  if (diffHours < 24) {
-    if (remainingMin === 0) {
-      if (diffHours === 1) return 'בעוד שעה';
-      if (diffHours === 2) return 'בעוד שעתיים';
-      return `בעוד ${diffHours} שעות`;
+  if (diffHours <= 24) {
+    // Within 24 hours — show relative + 24h time
+    const diffMin = Math.round(diffMs / 60000);
+    if (diffMin < 1) return 'עכשיו';
+    if (diffMin < 60) {
+      const relative = diffMin === 1 ? 'בעוד דקה' : `בעוד ${diffMin} דקות`;
+      return `${relative} (${time24})`;
     }
-    return `בעוד ${diffHours} שעות ו-${remainingMin} דקות`;
+    const h = Math.floor(diffMin / 60);
+    const isToday = date.toDateString() === now.toDateString();
+    const dayLabel = isToday ? 'היום' : 'מחר';
+    return `${dayLabel} ${time24}`;
   }
 
-  // Format as absolute time for further-out reminders
-  const hours = date.getHours().toString().padStart(2, '0');
-  const minutes = date.getMinutes().toString().padStart(2, '0');
-
-  const isToday = date.toDateString() === now.toDateString();
-  const tomorrow = new Date(now.getTime() + 86400000);
-  const isTomorrow = date.toDateString() === tomorrow.toDateString();
-
-  if (isToday) return `היום בשעה ${hours}:${minutes}`;
-  if (isTomorrow) return `מחר בשעה ${hours}:${minutes}`;
-
-  return `ב-${date.toLocaleDateString('he-IL')} בשעה ${hours}:${minutes}`;
+  // Over 24 hours — show dd/mm/yy HH:MM
+  const dd = date.getDate().toString().padStart(2, '0');
+  const mo = (date.getMonth() + 1).toString().padStart(2, '0');
+  const yy = date.getFullYear().toString().slice(-2);
+  return `${dd}/${mo}/${yy} ${time24}`;
 }
 
 /**

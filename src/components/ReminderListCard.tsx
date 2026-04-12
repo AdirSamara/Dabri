@@ -59,19 +59,19 @@ function ReminderItem({
           borderRadius: 8,
         },
         deleteButton: {
-          backgroundColor: '#FFEBEE',
+          backgroundColor: theme.error + '18',
         },
         editButton: {
-          backgroundColor: '#E3F2FD',
+          backgroundColor: theme.primary + '18',
         },
         deleteButtonText: {
           fontSize: 13,
-          color: '#F44336',
+          color: theme.error,
           fontWeight: '600',
         },
         editButtonText: {
           fontSize: 13,
-          color: '#2196F3',
+          color: theme.primary,
           fontWeight: '600',
         },
       }),

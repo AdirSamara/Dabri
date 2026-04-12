@@ -17,8 +17,9 @@ import { cancelReminderById, formatHebrewTimeDescription } from '../services/rem
 import { MicButton } from '../components/MicButton';
 import { VoiceOverlay } from '../components/VoiceOverlay';
 import { ConversationLog } from '../components/ConversationLog';
+import { ReminderEditModal } from '../components/ReminderEditModal';
 import { generateId } from '../utils/hebrewUtils';
-import { ConversationEntry } from '../types';
+import { ConversationEntry, Reminder } from '../types';
 import AssistantBridge from '../native/AssistantBridge';
 import { useTheme } from '../utils/theme';
 
@@ -203,28 +204,21 @@ export function HomeScreen(): React.JSX.Element {
     [reminders],
   );
 
+  const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
+
   const handleDeleteReminder = useCallback((id: string) => {
     cancelReminderById(id);
+    setEditingReminder(null);
   }, []);
 
-  const handleEditReminder = useCallback(
-    (reminder: import('../types').Reminder) => {
-      const timeDesc = formatHebrewTimeDescription(new Date(reminder.triggerTime));
-      Alert.alert(
-        'עריכת תזכורת',
-        `${reminder.text}\n${timeDesc}`,
-        [
-          { text: 'סגור', style: 'cancel' },
-          {
-            text: 'מחק תזכורת',
-            style: 'destructive',
-            onPress: () => cancelReminderById(reminder.id),
-          },
-        ],
-      );
-    },
-    [],
-  );
+  const handleEditReminder = useCallback((reminder: Reminder) => {
+    setEditingReminder(reminder);
+  }, []);
+
+  const handleSaveReminder = useCallback((id: string, newText: string) => {
+    useDabriStore.getState().updateReminder(id, { text: newText });
+    setEditingReminder(null);
+  }, []);
 
   const handleOverlayClose = useCallback(() => {
     stopListening();
@@ -335,6 +329,15 @@ export function HomeScreen(): React.JSX.Element {
             voiceStatus={voiceStatus}
             transcript={lastTranscript}
             onMicPress={handleMicPress}
+        />
+
+        <ReminderEditModal
+          visible={editingReminder !== null}
+          reminder={editingReminder}
+          formatTime={formatHebrewTimeDescription}
+          onSave={handleSaveReminder}
+          onDelete={handleDeleteReminder}
+          onClose={() => setEditingReminder(null)}
         />
       </SafeAreaView>
   );
