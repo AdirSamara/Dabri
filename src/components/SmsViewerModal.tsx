@@ -359,6 +359,7 @@ export function SmsViewerModal({
               </TouchableOpacity>
 
               <View style={styles.navRow}>
+                {/* Right side in RTL: הבא = next = index+1 */}
                 <TouchableOpacity
                   style={[
                     styles.navButton,
@@ -367,8 +368,9 @@ export function SmsViewerModal({
                   onPress={() => setSelectedIndex((i) => Math.min((i ?? 0) + 1, messages.length - 1))}
                   disabled={selectedIndex >= messages.length - 1}
                   activeOpacity={0.7}>
-                  <Text style={styles.navButtonText}>{'< הקודם'}</Text>
+                  <Text style={styles.navButtonText}>{'הבא >'}</Text>
                 </TouchableOpacity>
+                {/* Left side in RTL: הקודם = previous = index-1 */}
                 <TouchableOpacity
                   style={[
                     styles.navButton,
@@ -377,7 +379,7 @@ export function SmsViewerModal({
                   onPress={() => setSelectedIndex((i) => Math.max((i ?? 1) - 1, 0))}
                   disabled={selectedIndex <= 0}
                   activeOpacity={0.7}>
-                  <Text style={styles.navButtonText}>{'הבא >'}</Text>
+                  <Text style={styles.navButtonText}>{'< הקודם'}</Text>
                 </TouchableOpacity>
               </View>
 
