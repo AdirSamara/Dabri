@@ -14,9 +14,6 @@ interface UseVoiceRecognitionReturn {
 
 // Maximum time the mic stays open (hard cap)
 const MAX_LISTENING_MS = 7000;
-// After the last partial result, wait this long before auto-stopping.
-// ~1s matches Google Assistant / Siri behavior for command-based input.
-const SILENCE_AFTER_SPEECH_MS = 1000;
 
 export function useVoiceRecognition({
   onResult,
@@ -30,7 +27,7 @@ export function useVoiceRecognition({
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasReceivedSpeech = useRef(false);
 
-  const { setVoiceStatus, setLastTranscript } = useDabriStore();
+  const { setVoiceStatus, setLastTranscript, silenceTimeout } = useDabriStore();
 
   const clearTimers = useCallback(() => {
     if (maxTimerRef.current) {
@@ -67,9 +64,10 @@ export function useVoiceRecognition({
       if (silenceTimerRef.current) {
         clearTimeout(silenceTimerRef.current);
       }
+      const timeout = useDabriStore.getState().silenceTimeout;
       silenceTimerRef.current = setTimeout(() => {
         autoStop();
-      }, SILENCE_AFTER_SPEECH_MS);
+      }, timeout);
     });
 
     stt.onResult((text) => {

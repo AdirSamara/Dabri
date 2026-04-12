@@ -10,6 +10,7 @@ import { ApiKeySettingsScreen } from './src/screens/ApiKeySettingsScreen';
 import { VoiceSpeedSettingsScreen } from './src/screens/VoiceSpeedSettingsScreen';
 import { AboutScreen } from './src/screens/AboutScreen';
 import { RemindersScreen } from './src/screens/RemindersScreen';
+import { SilenceTimeoutSettingsScreen } from './src/screens/SilenceTimeoutSettingsScreen';
 import { initializeServices } from './src/services';
 import { useDabriStore } from './src/store';
 import { lightTheme, darkTheme } from './src/utils/theme';
@@ -29,6 +30,7 @@ export type RootStackParamList = {
   ApiKeySettings: undefined;
   VoiceSpeedSettings: undefined;
   Reminders: undefined;
+  SilenceTimeoutSettings: undefined;
   About: undefined;
 };
 
@@ -127,6 +129,11 @@ function App(): React.JSX.Element {
             name="Reminders"
             component={RemindersScreen}
             options={{ headerTitle: 'תזכורות' }}
+          />
+          <Stack.Screen
+            name="SilenceTimeoutSettings"
+            component={SilenceTimeoutSettingsScreen}
+            options={{ headerTitle: 'זמן שתיקה לעצירה' }}
           />
           <Stack.Screen
             name="About"

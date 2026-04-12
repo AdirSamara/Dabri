@@ -77,7 +77,7 @@ export function SettingsScreen(): React.JSX.Element {
   }), [theme]);
 
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
-  const { geminiApiKey, ttsSpeed, reminders } = useDabriStore();
+  const { geminiApiKey, ttsSpeed, reminders, silenceTimeout } = useDabriStore();
   const [isDefaultAssistant, setIsDefaultAssistant] = useState(false);
 
   const checkAssistantStatus = async () => {
@@ -128,6 +128,11 @@ export function SettingsScreen(): React.JSX.Element {
         title="מהירות דיבור"
         subtitle={SPEED_OPTIONS.find(o => o.value === ttsSpeed)?.label ?? ttsSpeed.toFixed(1)}
         onPress={() => navigation.navigate('VoiceSpeedSettings')}
+      />
+      <SettingsRow
+        title="זמן שתיקה לעצירה"
+        subtitle={silenceTimeout === 1000 ? '1 שנייה' : silenceTimeout === 1500 ? '1.5 שניות' : '2 שניות'}
+        onPress={() => navigation.navigate('SilenceTimeoutSettings')}
       />
       <SettingsRow
         title="אודות"

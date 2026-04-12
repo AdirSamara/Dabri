@@ -31,6 +31,7 @@ interface DabriState {
   geminiApiKey: string;
   ttsSpeed: number;
   isDarkMode: boolean;
+  silenceTimeout: number; // ms after last speech to auto-stop (1000, 1500, 2000)
   contactAliases: Record<string, string>;
 
   // Actions
@@ -49,6 +50,7 @@ interface DabriState {
   setGeminiApiKey: (key: string) => void;
   setTtsSpeed: (speed: number) => void;
   setDarkMode: (dark: boolean) => void;
+  setSilenceTimeout: (ms: number) => void;
   setContactAlias: (name: string, alias: string) => void;
   removeContactAlias: (name: string) => void;
 }
@@ -66,6 +68,7 @@ export const useDabriStore = create<DabriState>()(
       geminiApiKey: '',
       ttsSpeed: 0.6,
       isDarkMode: false,
+      silenceTimeout: 1000,
       contactAliases: {},
 
       // Actions
@@ -138,6 +141,8 @@ export const useDabriStore = create<DabriState>()(
 
       setDarkMode: (dark) => set({ isDarkMode: dark }),
 
+      setSilenceTimeout: (ms) => set({ silenceTimeout: ms }),
+
       setContactAlias: (name, alias) =>
         set((state) => ({
           contactAliases: { ...state.contactAliases, [name]: alias },
@@ -157,6 +162,7 @@ export const useDabriStore = create<DabriState>()(
         geminiApiKey: state.geminiApiKey,
         ttsSpeed: state.ttsSpeed,
         isDarkMode: state.isDarkMode,
+        silenceTimeout: state.silenceTimeout,
         contactAliases: state.contactAliases,
       }),
       onRehydrateStorage: () => (state, error) => {
