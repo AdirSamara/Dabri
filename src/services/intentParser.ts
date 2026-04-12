@@ -39,9 +39,11 @@ function parseIntentWithRegex(text: string): ParsedIntent {
   // LIST_REMINDERS — various Hebrew phrasings for "show me my reminders"
   if (
     /(?:מה|איזה|אילו|כמה)\s+(?:ה)?תזכורות\s+(?:שלי|שיש\s+לי|יש\s+לי)/.test(text) ||
-    /(?:תגיד|אמור|תראה|תראי|הראה|הראי)\s+לי.*תזכורות/.test(text) ||
+    /(?:תגיד|אמור)\s+לי.*תזכורות/.test(text) ||
+    /(?:תראה|תראי|הראה|הראי|תציג|הצג|תקרא|קרא|תפתח|פתח)\s+(?:לי\s+)?(?:את\s+)?(?:ה)?תזכורות/.test(text) ||
     /יש\s+לי\s+תזכורות/.test(text) ||
-    /^תזכורות$/.test(text.trim())
+    /רשימת\s+(?:ה)?תזכורות/.test(text) ||
+    /^(?:ה)?תזכורות(?:\s+שלי)?$/.test(text.trim())
   ) {
     return buildReminderIntent('__LIST__', null);
   }

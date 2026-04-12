@@ -42,93 +42,104 @@ export function ReminderEditModal({
   const styles = useMemo(
     () =>
       StyleSheet.create({
-        overlay: {
+        backdrop: {
           flex: 1,
           backgroundColor: 'rgba(0,0,0,0.5)',
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: 24,
+          justifyContent: 'flex-end',
         },
-        card: {
-          backgroundColor: theme.surface,
-          borderRadius: 20,
-          padding: 24,
+        sheet: {
           width: '100%',
-          maxWidth: 400,
-          elevation: 8,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.2,
-          shadowRadius: 12,
+          backgroundColor: theme.overlayCard,
+          borderTopLeftRadius: 28,
+          borderTopRightRadius: 28,
+          paddingTop: 12,
+          paddingBottom: Platform.OS === 'ios' ? 40 : 28,
+          paddingHorizontal: 24,
+        },
+        handle: {
+          width: 40,
+          height: 4,
+          borderRadius: 2,
+          backgroundColor: theme.border,
+          alignSelf: 'center',
+          marginBottom: 20,
         },
         title: {
-          fontSize: 20,
+          fontSize: 22,
           fontWeight: '700',
           color: theme.text,
           writingDirection: 'rtl',
           textAlign: 'right',
-          marginBottom: 16,
+          marginBottom: 24,
         },
         label: {
-          fontSize: 13,
+          fontSize: 14,
           fontWeight: '600',
           color: theme.textSecondary,
           writingDirection: 'rtl',
           textAlign: 'right',
-          marginBottom: 6,
+          marginBottom: 8,
         },
         textInput: {
-          backgroundColor: theme.background,
+          backgroundColor: theme.surface,
           borderWidth: 1,
           borderColor: theme.border,
-          borderRadius: 12,
-          padding: 12,
-          fontSize: 16,
+          borderRadius: 14,
+          paddingHorizontal: 16,
+          paddingVertical: 14,
+          fontSize: 17,
           color: theme.text,
           writingDirection: 'rtl',
           textAlign: 'right',
-          marginBottom: 16,
-          minHeight: 48,
+          marginBottom: 20,
+          minHeight: 56,
         },
         timeRow: {
-          flexDirection: 'row',
-          justifyContent: 'flex-end',
+          flexDirection: 'row-reverse',
           alignItems: 'center',
-          marginBottom: 20,
-          gap: 8,
-        },
-        timeIcon: {
-          fontSize: 16,
-        },
-        timeText: {
-          fontSize: 15,
-          color: theme.textSecondary,
-          fontWeight: '500',
-        },
-        buttonsRow: {
-          flexDirection: 'row',
-          justifyContent: 'space-between',
+          backgroundColor: theme.surface,
+          borderRadius: 14,
+          paddingHorizontal: 16,
+          paddingVertical: 14,
+          marginBottom: 28,
           gap: 10,
         },
-        button: {
-          flex: 1,
-          paddingVertical: 12,
-          borderRadius: 12,
+        timeIcon: {
+          fontSize: 18,
+        },
+        timeText: {
+          fontSize: 16,
+          color: theme.text,
+          fontWeight: '500',
+        },
+        primaryButton: {
+          width: '100%',
+          paddingVertical: 16,
+          borderRadius: 14,
           alignItems: 'center',
-        },
-        saveButton: {
           backgroundColor: theme.primary,
+          marginBottom: 10,
         },
-        saveButtonText: {
-          fontSize: 15,
+        primaryButtonText: {
+          fontSize: 17,
           fontWeight: '700',
           color: '#FFFFFF',
+        },
+        secondaryRow: {
+          flexDirection: 'row',
+          gap: 10,
+        },
+        secondaryButton: {
+          flex: 1,
+          paddingVertical: 14,
+          borderRadius: 14,
+          alignItems: 'center',
         },
         cancelButton: {
           backgroundColor: theme.surfaceVariant,
         },
         cancelButtonText: {
-          fontSize: 15,
+          fontSize: 16,
           fontWeight: '600',
           color: theme.textSecondary,
         },
@@ -136,7 +147,7 @@ export function ReminderEditModal({
           backgroundColor: theme.error + '18',
         },
         deleteButtonText: {
-          fontSize: 15,
+          fontSize: 16,
           fontWeight: '600',
           color: theme.error,
         },
@@ -153,64 +164,63 @@ export function ReminderEditModal({
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType="slide"
       onRequestClose={onClose}>
       <KeyboardAvoidingView
-        style={styles.overlay}
+        style={{flex: 1}}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <TouchableOpacity
-          style={styles.overlay}
+          style={styles.backdrop}
           activeOpacity={1}
           onPress={onClose}>
-          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-            <View style={styles.card}>
-              <Text style={styles.title}>עריכת תזכורת</Text>
+          <TouchableOpacity activeOpacity={1} style={styles.sheet} onPress={() => {}}>
+            <View style={styles.handle} />
+            <Text style={styles.title}>עריכת תזכורת</Text>
 
-              <Text style={styles.label}>תוכן התזכורת</Text>
-              <TextInput
-                style={styles.textInput}
-                value={editText}
-                onChangeText={setEditText}
-                multiline
-                autoFocus
-              />
+            <Text style={styles.label}>תוכן התזכורת</Text>
+            <TextInput
+              style={styles.textInput}
+              value={editText}
+              onChangeText={setEditText}
+              multiline
+              autoFocus
+            />
 
-              <Text style={styles.label}>זמן</Text>
-              <View style={styles.timeRow}>
-                <Text style={styles.timeText}>{timeStr}</Text>
-              </View>
+            <Text style={styles.label}>זמן</Text>
+            <View style={styles.timeRow}>
+              <Text style={styles.timeIcon}>🕐</Text>
+              <Text style={styles.timeText}>{timeStr}</Text>
+            </View>
 
-              <View style={styles.buttonsRow}>
-                <TouchableOpacity
-                  style={[styles.button, styles.deleteButton]}
-                  onPress={() => onDelete(reminder.id)}
-                  activeOpacity={0.7}>
-                  <Text style={styles.deleteButtonText}>מחק</Text>
-                </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.primaryButton,
+                !hasChanges && { opacity: 0.4 },
+              ]}
+              onPress={() => {
+                if (editText.trim()) {
+                  onSave(reminder.id, editText.trim());
+                }
+              }}
+              disabled={!hasChanges || !editText.trim()}
+              activeOpacity={0.7}>
+              <Text style={styles.primaryButtonText}>שמור</Text>
+            </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={[styles.button, styles.cancelButton]}
-                  onPress={onClose}
-                  activeOpacity={0.7}>
-                  <Text style={styles.cancelButtonText}>ביטול</Text>
-                </TouchableOpacity>
+            <View style={styles.secondaryRow}>
+              <TouchableOpacity
+                style={[styles.secondaryButton, styles.deleteButton]}
+                onPress={() => onDelete(reminder.id)}
+                activeOpacity={0.7}>
+                <Text style={styles.deleteButtonText}>מחק</Text>
+              </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={[
-                    styles.button,
-                    styles.saveButton,
-                    !hasChanges && { opacity: 0.4 },
-                  ]}
-                  onPress={() => {
-                    if (editText.trim()) {
-                      onSave(reminder.id, editText.trim());
-                    }
-                  }}
-                  disabled={!hasChanges || !editText.trim()}
-                  activeOpacity={0.7}>
-                  <Text style={styles.saveButtonText}>שמור</Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                style={[styles.secondaryButton, styles.cancelButton]}
+                onPress={onClose}
+                activeOpacity={0.7}>
+                <Text style={styles.cancelButtonText}>ביטול</Text>
+              </TouchableOpacity>
             </View>
           </TouchableOpacity>
         </TouchableOpacity>
