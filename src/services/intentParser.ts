@@ -25,9 +25,36 @@ const UNKNOWN_INTENT: ParsedIntent = {
   source: 'regex',
 };
 
-// Detects "הודעה האחרונה" / "הודעה אחרונה" (singular last) vs plural
+// Parse how many SMS messages the user asked for
 function smsCount(text: string): number {
-  return /הודע[הת]\s+(?:ה)?אחרונה/.test(text) ? 1 : 5;
+  // "הודעה האחרונה" / "הודעה אחרונה" → 1
+  if (/הודע[הת]\s+(?:ה)?אחרונה/.test(text)) return 1;
+
+  // Digit: "3 הודעות" / "5 הודעות"
+  const digitMatch = text.match(/(\d+)\s+הודעו?ת/);
+  if (digitMatch) return Math.min(parseInt(digitMatch[1], 10), 5);
+
+  // Hebrew number words before הודעות
+  const SMS_NUMBERS: Record<string, number> = {
+    'שתי': 2, 'שתיים': 2, 'שני': 2, 'שניים': 2,
+    'שלוש': 3, 'שלושה': 3, 'שלושת': 3,
+    'ארבע': 4, 'ארבעה': 4, 'ארבעת': 4,
+    'חמש': 5, 'חמישה': 5, 'חמשת': 5,
+    'שש': 6, 'שישה': 6, 'ששת': 6,
+    'שבע': 7, 'שבעה': 7, 'שבעת': 7,
+    'שמונה': 8, 'שמונת': 8,
+    'תשע': 9, 'תשעה': 9, 'תשעת': 9,
+    'עשר': 10, 'עשרה': 10, 'עשרת': 10,
+  };
+  const hebrewMatch = text.match(
+    /(שתי|שתיים|שני|שניים|שלוש|שלושה|שלושת|ארבע|ארבעה|ארבעת|חמש|חמישה|חמשת|שש|שישה|ששת|שבע|שבעה|שבעת|שמונה|שמונת|תשע|תשעה|תשעת|עשר|עשרה|עשרת)\s+(?:ה)?הודעו?ת/
+  );
+  if (hebrewMatch && SMS_NUMBERS[hebrewMatch[1]] !== undefined) {
+    return SMS_NUMBERS[hebrewMatch[1]];
+  }
+
+  // Default
+  return 5;
 }
 
 function parseIntentWithRegex(text: string): ParsedIntent {
@@ -188,9 +215,8 @@ function parseIntentWithRegex(text: string): ParsedIntent {
     };
   }
 
-  // 5. READ_SMS — count=1 for singular "הודעה האחרונה", else 5
-  // Note: \b does not work with Hebrew (non-ASCII) — use plain alternation
-  if (/(?:תקרא|קרא|תראה|הצג).*הודע|הודע(?:ה|ות).*שלי/.test(text)) {
+  // 5. READ_SMS — supports "תקרא/תראה/תראי לי X הודעות"
+  if (/(?:תקרא|תקראי|קרא|קראי|תראה|תראי|הצג|הציגי|הראה|הראי).*הודע|הודע(?:ה|ות).*שלי/.test(text)) {
     return {
       intent: 'READ_SMS',
       contact: null,

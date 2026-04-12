@@ -36,7 +36,7 @@ async function handleReadSms(intent: ParsedIntent): Promise<ActionResult> {
   }
 
   try {
-    const fetchCount = intent.count ?? 5;
+    const fetchCount = Math.min(intent.count ?? 5, 5);
     const messages = await SmsBridge.readInbox(fetchCount);
 
     if (messages.length === 0) {
