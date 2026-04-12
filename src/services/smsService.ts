@@ -1,7 +1,7 @@
 import { PermissionsAndroid, Platform } from 'react-native';
 import SmsBridge from '../native/SmsBridge';
 import { registerHandler } from './actionDispatcher';
-import { resolveContact } from './contactResolver';
+import { resolveContactWithAlignment } from './contactResolver';
 import { ParsedIntent } from '../types';
 import type { ActionResult } from './actionDispatcher';
 
@@ -86,9 +86,17 @@ async function handleSendSms(intent: ParsedIntent): Promise<ActionResult> {
     return { success: false, message: 'לא צוין תוכן ההודעה' };
   }
 
-  const contact = await resolveContact(intent.contact);
+  const { contact, correctedMessage } = await resolveContactWithAlignment(
+    intent.contact,
+    intent.message,
+  );
   if (!contact) {
     return { success: false, message: `לא מצאתי איש קשר בשם ${intent.contact}` };
+  }
+
+  const finalMessage = correctedMessage || intent.message;
+  if (!finalMessage.trim()) {
+    return { success: false, message: 'לא צוין תוכן ההודעה' };
   }
 
   const granted = await requestSendSmsPermission();
@@ -97,7 +105,7 @@ async function handleSendSms(intent: ParsedIntent): Promise<ActionResult> {
   }
 
   try {
-    await SmsBridge.sendSms(contact.phoneNumber, intent.message);
+    await SmsBridge.sendSms(contact.phoneNumber, finalMessage);
     return { success: true, message: `הודעה נשלחה ל${contact.displayName}` };
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'שגיאה לא ידועה';

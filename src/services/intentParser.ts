@@ -100,18 +100,18 @@ function parseIntentWithRegex(text: string): ParsedIntent {
   const sendWaPatternA = new RegExp(
     `(?:(?:אפשר|בבקשה|תוכל|תוכלי)\\s+)?${WA_VERBS}\\s+` +
     `(?:(?:(?:הודעת|הודעה)\\s+)?${WA_PLATFORM}\\s+|הודעה\\s+)?` +
-    `(?:ל|אל)([^?!.\\n]+?)\\s+ש?(.+)`,
+    `(?:ל|אל)([^?!.\\n]+?)\\s+(.+)`,
     'i',
   );
   // Pattern B: "לשלוח + optional noun + platform + ל..." form
   const sendWaPatternB = new RegExp(
-    `לשלוח\\s+(?:(?:הודעת|הודעה)\\s+)?${WA_PLATFORM}\\s+(?:ל|אל)([^?!.\\n]+?)\\s+ש?(.+)`,
+    `לשלוח\\s+(?:(?:הודעת|הודעה)\\s+)?${WA_PLATFORM}\\s+(?:ל|אל)([^?!.\\n]+?)\\s+(.+)`,
     'i',
   );
   // Pattern C: implicit messaging verbs — never used for SMS/calls
   // min 2 chars for contact to avoid capturing single-letter pronouns (לו/לה)
   const sendWaPatternC = new RegExp(
-    `(?:תרשום|תרשמי|תכתוב|תכתבי|תגיד|תגידי|תודיע|תודיעי|תעביר|תעבירי)\\s+ל([^\\s?!.\\n]{2,})\\s+(.+)`,
+    `(?:תרשום|תרשמי|תכתוב|תכתבי|תגיד|תגידי|תודיע|תודיעי|תעביר|תעבירי)\\s+ל([^?!.\\n]{2,}?)\\s+(.+)`,
   );
 
   const sendWaMatch =
@@ -121,7 +121,6 @@ function parseIntentWithRegex(text: string): ParsedIntent {
 
   if (sendWaMatch) {
     const rawMessage = sendWaMatch[2]
-      .replace(/^ש/, '')                                                      // strip leading ש conjunction
       .replace(/\s+(?:ב|ה)?(?:וואטסאפ|ווצאפ|ווטסאפ|whatsapp)\s*$/i, '')    // strip platform keyword from end
       .trim();
     return {
