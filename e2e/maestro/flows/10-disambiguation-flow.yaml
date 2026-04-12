@@ -1,0 +1,12 @@
+appId: com.dabri
+name: Disambiguation Flow
+---
+- launchApp
+- tapOn:
+    id: "debug-voice-input"
+- inputText: "תתקשר ליוסי"
+- pressKey: Enter
+# If multiple contacts match, disambiguation buttons appear
+- assertVisible:
+    text: ".*יוסי.*"
+    regex: true

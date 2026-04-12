@@ -1,0 +1,12 @@
+appId: com.dabri
+name: API Key Settings
+---
+- launchApp
+- tapOn:
+    id: "settings-button"
+- tapOn:
+    text: ".*Gemini.*|.*מפתח.*"
+    regex: true
+- assertVisible:
+    text: ".*API.*|.*מפתח.*"
+    regex: true

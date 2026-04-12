@@ -1,0 +1,23 @@
+appId: com.dabri
+name: "Smoke: Reminder Actually Fires"
+---
+- launchApp
+- tapOn:
+    id: "debug-voice-input"
+- inputText: "תזכיר לי בעוד 15 שניות בדיקת מערכת"
+- pressKey: Enter
+- tapOn:
+    text: ".*Allow.*|.*אישור.*"
+    regex: true
+    optional: true
+- assertVisible:
+    text: ".*אזכיר.*"
+    regex: true
+# Wait 20 seconds for alarm to fire
+- wait: 20000
+# Check notification shade for the reminder
+- evalScript: |
+    const output = java.lang.Runtime.getRuntime().exec("adb shell dumpsys notification --noredact").text
+    if (!output.includes("בדיקת מערכת")) {
+      throw new Error("Reminder notification never appeared after 20s")
+    }

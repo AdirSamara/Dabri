@@ -1,0 +1,14 @@
+appId: com.dabri
+name: Silence Timeout Setting
+---
+- launchApp
+- tapOn:
+    id: "settings-button"
+- tapOn:
+    text: ".*זמן שתיקה.*"
+    regex: true
+    optional: true
+- assertVisible:
+    text: ".*שנ.*|.*שתיקה.*"
+    regex: true
+    optional: true

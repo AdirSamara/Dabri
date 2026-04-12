@@ -1,0 +1,7 @@
+appId: com.dabri
+name: App Launch
+---
+- launchApp
+- assertVisible: "דברי"
+- assertVisible:
+    id: "mic-button"

@@ -1,0 +1,13 @@
+appId: com.dabri
+name: Settings Navigation
+---
+- launchApp
+- tapOn:
+    id: "settings-button"
+- assertVisible: "הגדרות"
+# Navigate through settings
+- tapOn:
+    text: ".*זמן שתיקה.*|.*silence.*"
+    regex: true
+    optional: true
+- back

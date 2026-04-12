@@ -1,0 +1,16 @@
+appId: com.dabri
+name: "API 33+ Notification Permission"
+---
+- launchApp
+- tapOn:
+    id: "debug-voice-input"
+- inputText: "תזכיר לי בעוד 5 דקות לבדוק"
+- pressKey: Enter
+# On API 33+, POST_NOTIFICATIONS dialog should appear
+- tapOn:
+    text: ".*Allow.*|.*אישור.*"
+    regex: true
+    optional: true
+- assertVisible:
+    text: ".*אזכיר.*|.*תזכורת.*"
+    regex: true

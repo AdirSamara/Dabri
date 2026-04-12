@@ -1,0 +1,12 @@
+appId: com.dabri
+name: "API 33+ Exact Alarm Permission"
+---
+- launchApp
+- tapOn:
+    id: "debug-voice-input"
+- inputText: "תזכיר לי בעוד 10 דקות לצאת"
+- pressKey: Enter
+# Verify reminder was created (exact alarm permission may redirect to settings)
+- assertVisible:
+    text: ".*אזכיר.*|.*תזכורת.*|.*הגדרות.*"
+    regex: true

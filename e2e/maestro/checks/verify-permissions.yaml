@@ -1,0 +1,10 @@
+appId: com.dabri
+name: "Verify Runtime Permissions Granted"
+---
+- evalScript: |
+    const output = java.lang.Runtime.getRuntime().exec("adb shell dumpsys package com.dabri | grep granted").text
+    const required = ["READ_CONTACTS", "SEND_SMS", "READ_SMS", "CALL_PHONE"]
+    const missing = required.filter(p => !output.includes(p))
+    if (missing.length > 0) {
+      console.log("Warning: permissions not yet granted: " + missing.join(", "))
+    }

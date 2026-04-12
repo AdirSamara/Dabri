@@ -1,0 +1,11 @@
+appId: com.dabri
+name: Call Flow
+---
+- launchApp
+- tapOn:
+    id: "debug-voice-input"
+- inputText: "תתקשר לאבא"
+- pressKey: Enter
+- assertVisible:
+    text: ".*מתקשר.*|.*לא מצאתי.*|.*שיחה.*"
+    regex: true

@@ -1,0 +1,11 @@
+appId: com.dabri
+name: SMS Send Flow
+---
+- launchApp
+- tapOn:
+    id: "debug-voice-input"
+- inputText: "שלח הודעה לאמא שאני בדרך"
+- pressKey: Enter
+- assertVisible:
+    text: ".*נשלחה.*|.*הודעה.*"
+    regex: true

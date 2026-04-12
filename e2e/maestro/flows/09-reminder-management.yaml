@@ -1,0 +1,11 @@
+appId: com.dabri
+name: Reminder Management
+---
+- launchApp
+- tapOn:
+    id: "settings-button"
+- assertVisible: "הגדרות"
+- tapOn: "תזכורות"
+- assertVisible:
+    text: ".*תזכורות.*"
+    regex: true

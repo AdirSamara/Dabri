@@ -1,0 +1,17 @@
+appId: com.dabri
+name: Reminder Edit Flow
+---
+- launchApp
+# First create a reminder
+- tapOn:
+    id: "debug-voice-input"
+- inputText: "תזכיר לי בעוד שעה לקנות חלב"
+- pressKey: Enter
+- assertVisible:
+    text: ".*אזכיר.*|.*תזכורת.*"
+    regex: true
+# Tap on the reminder card to open edit
+- tapOn:
+    text: ".*לפרטים.*"
+    regex: true
+    optional: true

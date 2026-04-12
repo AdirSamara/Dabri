@@ -1,0 +1,11 @@
+appId: com.dabri
+name: SMS Read Flow
+---
+- launchApp
+- tapOn:
+    id: "debug-voice-input"
+- inputText: "תקריא לי את ההודעות"
+- pressKey: Enter
+- assertVisible:
+    text: ".*הודעות.*|.*אין הודעות.*"
+    regex: true

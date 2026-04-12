@@ -1,0 +1,8 @@
+appId: com.dabri
+name: "Verify Notification Channel Exists"
+---
+- evalScript: |
+    const output = java.lang.Runtime.getRuntime().exec("adb shell dumpsys notification | grep dabri_reminders").text
+    if (!output.includes("dabri_reminders")) {
+      throw new Error("Reminder notification channel not found")
+    }

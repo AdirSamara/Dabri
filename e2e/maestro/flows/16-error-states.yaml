@@ -1,0 +1,12 @@
+appId: com.dabri
+name: Error States
+---
+- launchApp
+# Unknown intent
+- tapOn:
+    id: "debug-voice-input"
+- inputText: "מה מזג האוויר היום"
+- pressKey: Enter
+- assertVisible:
+    text: ".*לא הבנתי.*|.*UNKNOWN.*"
+    regex: true

@@ -1,0 +1,10 @@
+appId: com.dabri
+name: "API 34+ Foreground Service"
+---
+- launchApp
+# Tap mic to start voice recognition — tests foreground service type
+- tapOn:
+    id: "mic-button"
+# Should not crash — foreground service type must be declared
+- assertVisible:
+    id: "mic-button"

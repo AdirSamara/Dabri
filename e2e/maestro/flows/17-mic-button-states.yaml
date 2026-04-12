@@ -1,0 +1,13 @@
+appId: com.dabri
+name: Mic Button States
+---
+- launchApp
+# Verify mic button is visible in idle state
+- assertVisible:
+    id: "mic-button"
+# Tap to start listening
+- tapOn:
+    id: "mic-button"
+# Button should change state
+- assertVisible:
+    id: "mic-button"

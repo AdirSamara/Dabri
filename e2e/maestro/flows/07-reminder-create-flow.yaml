@@ -1,0 +1,11 @@
+appId: com.dabri
+name: Reminder Create Flow
+---
+- launchApp
+- tapOn:
+    id: "debug-voice-input"
+- inputText: "תזכיר לי בעוד 5 דקות לצלצל"
+- pressKey: Enter
+- assertVisible:
+    text: ".*אזכיר.*|.*תזכורת.*|.*הרשאה.*"
+    regex: true

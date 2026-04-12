@@ -1,0 +1,14 @@
+appId: com.dabri
+name: Permission Handling
+---
+- launchApp
+# Trigger an action that requires permissions
+- tapOn:
+    id: "debug-voice-input"
+- inputText: "שלח הודעה לאמא שלום"
+- pressKey: Enter
+# Handle permission dialog if it appears
+- tapOn:
+    text: ".*Allow.*|.*אישור.*|.*ALLOW.*"
+    regex: true
+    optional: true

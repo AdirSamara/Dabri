@@ -1,0 +1,8 @@
+appId: com.dabri
+name: "Verify Alarm Scheduled in OS"
+---
+- evalScript: |
+    const output = java.lang.Runtime.getRuntime().exec("adb shell dumpsys alarm").text
+    if (!output.includes("ReminderAlarmReceiver")) {
+      throw new Error("No alarm registered for Dabri after reminder creation")
+    }

@@ -1,0 +1,13 @@
+appId: com.dabri
+name: "API 36 Predictive Back Gesture"
+---
+- launchApp
+# Navigate to settings
+- tapOn:
+    id: "settings-button"
+- assertVisible: "הגדרות"
+# Back gesture should return to home, not exit app
+- back
+- assertVisible: "דברי"
+- assertVisible:
+    id: "mic-button"

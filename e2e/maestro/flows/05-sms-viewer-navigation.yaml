@@ -1,0 +1,13 @@
+appId: com.dabri
+name: SMS Viewer Navigation
+---
+- launchApp
+- tapOn:
+    id: "debug-voice-input"
+- inputText: "תקרא לי את ההודעות"
+- pressKey: Enter
+# If SMS viewer opens, verify navigation
+- assertVisible:
+    text: ".*הודעות.*"
+    regex: true
+    optional: true

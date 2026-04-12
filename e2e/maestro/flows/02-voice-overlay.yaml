@@ -1,0 +1,7 @@
+appId: com.dabri
+name: Voice Overlay
+---
+- launchApp
+- tapOn:
+    id: "mic-button"
+- assertVisible: "מקשיב..."

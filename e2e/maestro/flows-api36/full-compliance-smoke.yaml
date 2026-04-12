@@ -1,0 +1,35 @@
+appId: com.dabri
+name: "API 36 Full Compliance Smoke Test"
+---
+- launchApp
+- assertVisible: "דברי"
+
+# Test reminder creation
+- tapOn:
+    id: "debug-voice-input"
+- inputText: "תזכיר לי בעוד 5 דקות לבדוק"
+- pressKey: Enter
+- tapOn:
+    text: ".*Allow.*|.*אישור.*"
+    regex: true
+    optional: true
+- assertVisible:
+    text: ".*אזכיר.*|.*תזכורת.*|.*הרשאה.*"
+    regex: true
+
+# Test call
+- tapOn:
+    id: "debug-voice-input"
+- inputText: "תתקשר לאבא"
+- pressKey: Enter
+- tapOn:
+    text: ".*Allow.*|.*אישור.*"
+    regex: true
+    optional: true
+
+# Test settings navigation
+- tapOn:
+    id: "settings-button"
+- assertVisible: "הגדרות"
+- back
+- assertVisible: "דברי"

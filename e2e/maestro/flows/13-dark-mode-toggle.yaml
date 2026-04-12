@@ -1,0 +1,11 @@
+appId: com.dabri
+name: Dark Mode Toggle
+---
+- launchApp
+- tapOn:
+    id: "settings-button"
+- tapOn:
+    text: ".*מצב כהה.*|.*dark.*"
+    regex: true
+    optional: true
+- back
