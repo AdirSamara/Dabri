@@ -43,31 +43,30 @@ async function handleReadSms(intent: ParsedIntent): Promise<ActionResult> {
       return { success: true, message: 'אין הודעות חדשות' };
     }
 
-    // Build short summary for TTS (truncated)
-    const MAX_BODY_CHARS = 120;
-    const MAX_TOTAL_CHARS = 400;
-
-    let total = 0;
-    const parts: string[] = [];
-    for (const m of messages) {
-      const body = m.body.length > MAX_BODY_CHARS
-        ? m.body.slice(0, MAX_BODY_CHARS) + '...'
+    // Short summary for chat + TTS — keep it brief, user taps for full view
+    const MAX_PREVIEW = 30;
+    if (fetchCount === 1) {
+      const m = messages[0];
+      const preview = m.body.length > MAX_PREVIEW
+        ? m.body.slice(0, MAX_PREVIEW) + '...'
         : m.body;
-      const part = `מ-${m.address}: ${body}`;
-      if (total + part.length > MAX_TOTAL_CHARS) {
-        break;
-      }
-      parts.push(part);
-      total += part.length;
+      return {
+        success: true,
+        message: `מ-${m.address}: ${preview}`,
+        smsMessages: messages.map((msg: any) => ({
+          address: msg.address,
+          body: msg.body,
+          date: msg.date ?? Date.now(),
+        })),
+      };
     }
 
-    const summary = parts.join('. ');
-    const prefix = fetchCount === 1
-      ? 'ההודעה האחרונה'
-      : `יש ${messages.length} הודעות. לחץ לצפייה מלאה`;
+    // Multiple messages — short summary with sender names only
+    const senders = messages.slice(0, 3).map((m: any) => m.address).join(', ');
+    const extra = messages.length > 3 ? ` ועוד ${messages.length - 3}` : '';
     return {
       success: true,
-      message: `${prefix}. ${summary}`,
+      message: `${messages.length} הודעות מ-${senders}${extra}. לחץ לצפייה`,
       smsMessages: messages.map((m: any) => ({
         address: m.address,
         body: m.body,
