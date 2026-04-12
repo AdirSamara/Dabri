@@ -3,6 +3,7 @@ import {
   SafeAreaView,
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   StyleSheet,
   AppState,
@@ -92,6 +93,16 @@ export function HomeScreen(): React.JSX.Element {
       paddingVertical: 10,
     },
     chipText: { fontSize: 14, color: theme.text },
+    debugInput: {
+      borderWidth: 1,
+      borderColor: '#ccc',
+      margin: 8,
+      padding: 8,
+      borderRadius: 8,
+      fontSize: 14,
+      textAlign: 'right',
+      writingDirection: 'rtl' as const,
+    },
   }), [theme]);
 
   const {
@@ -377,12 +388,29 @@ export function HomeScreen(): React.JSX.Element {
           <Text style={styles.title}>דברי</Text>
         </View>
 
+        {__DEV__ && (
+          <TextInput
+            testID="debug-voice-input"
+            style={styles.debugInput}
+            placeholder="Debug: type voice command"
+            onSubmitEditing={(e) => {
+              const text = e.nativeEvent.text;
+              if (text.trim()) {
+                handleVoiceResult(text.trim());
+              }
+            }}
+            returnKeyType="send"
+          />
+        )}
+
         <View style={styles.mainContent}>
           {hasConversations ? (
               <>
                 {!isOverlayVisible && (
                     <View style={styles.micTopSection}>
-                      <MicButton status={voiceStatus} onPress={handleMicPress} />
+                      <View testID="mic-button">
+                        <MicButton status={voiceStatus} onPress={handleMicPress} />
+                      </View>
                       <View style={styles.divider} />
                     </View>
                 )}
@@ -404,7 +432,9 @@ export function HomeScreen(): React.JSX.Element {
               <View style={styles.emptyState}>
                 <Text style={styles.greeting}>שלום!</Text>
 
-                <MicButton status={voiceStatus} onPress={handleMicPress} />
+                <View testID="mic-button">
+                  <MicButton status={voiceStatus} onPress={handleMicPress} />
+                </View>
 
                 <View style={styles.chips}>
                   <TouchableOpacity style={styles.chip} onPress={handleMicPress}>

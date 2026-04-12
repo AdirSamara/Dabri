@@ -69,6 +69,7 @@ function App(): React.JSX.Element {
               headerTitle: '',
               headerRight: () => (
                 <TouchableOpacity
+                  testID="settings-button"
                   onPress={() => navigation.navigate('Settings')}
                   style={{ paddingHorizontal: 8, paddingVertical: 4 }}
                 >
