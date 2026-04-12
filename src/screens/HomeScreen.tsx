@@ -28,13 +28,16 @@ const OPTION_LABELS = ['אחת', 'שתיים', 'שלוש'];
 
 const NUMBER_WORDS: Record<string, number> = {
   'אחת': 0, 'אחד': 0, '1': 0, 'ראשון': 0, 'ראשונה': 0,
+  'אפשרות אחת': 0, 'אפשרות אחד': 0, 'אפשרות 1': 0,
   'שתיים': 1, 'שניים': 1, 'שני': 1, '2': 1, 'שנייה': 1,
+  'אפשרות שתיים': 1, 'אפשרות שניים': 1, 'אפשרות 2': 1,
   'שלוש': 2, 'שלושה': 2, '3': 2, 'שלישי': 2, 'שלישית': 2,
+  'אפשרות שלוש': 2, 'אפשרות שלושה': 2, 'אפשרות 3': 2,
 };
 
 function matchDisambiguationChoice(text: string, candidates: Contact[]): Contact | null {
   const normalized = normalizeHebrew(text);
-  // Check number words
+  // Check number words (including "אפשרות X" forms)
   const idx = NUMBER_WORDS[normalized];
   if (idx !== undefined && idx < candidates.length) {
     return candidates[idx];
@@ -288,6 +291,14 @@ export function HomeScreen(): React.JSX.Element {
   );
 
   const pendingDisambiguation = useDabriStore((s) => s.pendingDisambiguation);
+
+  // Auto-start listening after disambiguation TTS finishes
+  useEffect(() => {
+    if (pendingDisambiguation && voiceStatus === 'idle') {
+      setIsOverlayVisible(true);
+      startListening();
+    }
+  }, [pendingDisambiguation, voiceStatus, startListening]);
 
   const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
 
