@@ -109,15 +109,17 @@ export function parseRelativeTime(
     return new Date(refMs + 5 * MINUTE_MS);
   }
 
-  // Dual forms: שעתיים, יומיים, שבועיים
+  // Dual forms: שעתיים, יומיים, שבועיים, חודשיים
   if (/בעוד\s+שעתיים/.test(normalized)) return new Date(refMs + 2 * HOUR_MS);
   if (/בעוד\s+יומיים/.test(normalized)) return new Date(refMs + 2 * DAY_MS);
   if (/בעוד\s+שבועיים/.test(normalized)) return new Date(refMs + 2 * WEEK_MS);
+  if (/בעוד\s+חודשיים/.test(normalized)) return new Date(refMs + 60 * DAY_MS);
 
-  // "בעוד שעה וחצי" → 90 minutes
-  if (/בעוד\s+שעה\s+וחצי/.test(normalized)) {
-    return new Date(refMs + 90 * MINUTE_MS);
-  }
+  // Compound "וחצי" forms
+  if (/בעוד\s+שעה\s+וחצי/.test(normalized)) return new Date(refMs + 90 * MINUTE_MS);
+  if (/בעוד\s+יום\s+וחצי/.test(normalized)) return new Date(refMs + 36 * HOUR_MS);
+  if (/בעוד\s+שבוע\s+וחצי/.test(normalized)) return new Date(refMs + 10.5 * DAY_MS);
+  if (/בעוד\s+חודש\s+וחצי/.test(normalized)) return new Date(refMs + 45 * DAY_MS);
 
   // "בעוד שעה" (alone, no number) → 1 hour
   if (/בעוד\s+שעה(?!\s*ו)/.test(normalized)) {
@@ -125,13 +127,16 @@ export function parseRelativeTime(
   }
 
   // "בעוד יום" → 1 day
-  if (/בעוד\s+יום(?!יים)/.test(normalized)) return new Date(refMs + DAY_MS);
+  if (/בעוד\s+יום(?!יים|\s*ו)/.test(normalized)) return new Date(refMs + DAY_MS);
 
   // "בעוד שבוע" → 1 week
-  if (/בעוד\s+שבוע(?!יים)/.test(normalized)) return new Date(refMs + WEEK_MS);
+  if (/בעוד\s+שבוע(?!יים|\s*ו)/.test(normalized)) return new Date(refMs + WEEK_MS);
 
   // "בעוד חודש" → ~30 days
-  if (/בעוד\s+חודש(?!יים)/.test(normalized)) return new Date(refMs + 30 * DAY_MS);
+  if (/בעוד\s+חודש(?!יים|\s*ו)/.test(normalized)) return new Date(refMs + 30 * DAY_MS);
+
+  // "בעוד שנה" → ~365 days
+  if (/בעוד\s+שנה/.test(normalized)) return new Date(refMs + 365 * DAY_MS);
 
   // "בעוד X דקות/דקה"
   const minutesMatch = normalized.match(/בעוד\s+(.+?)\s+דקו?ת|בעוד\s+(.+?)\s+דקה/);
@@ -190,6 +195,11 @@ export function parseAbsoluteTime(
   // --- Determine base date ---
   let dateSet = false;
 
+  // "היום" → today (explicit, keeps dateSet=true so we don't roll to tomorrow)
+  if (/היום/.test(normalized)) {
+    dateSet = true;
+  }
+
   if (/מחרתיים/.test(normalized)) {
     result.setDate(result.getDate() + 2);
     dateSet = true;
@@ -198,7 +208,7 @@ export function parseAbsoluteTime(
     dateSet = true;
   }
 
-  // "ביום ראשון/שני/..."
+  // "ביום ראשון/שני/..." (full form)
   const dayMatch = normalized.match(/ביום\s+(ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת)/);
   if (dayMatch) {
     const targetDay = HEBREW_DAYS[dayMatch[1]];
@@ -209,6 +219,33 @@ export function parseAbsoluteTime(
       result.setDate(result.getDate() + daysAhead);
       dateSet = true;
     }
+  }
+
+  // Day names without "ביום" — colloquial: "בשבת", "בשישי", "בחמישי", "בראשון" etc.
+  if (!dateSet) {
+    const SHORT_DAYS: Record<string, number> = {
+      'בראשון': 0, 'בשני': 1, 'בשלישי': 2, 'ברביעי': 3,
+      'בחמישי': 4, 'בשישי': 5, 'בשבת': 6,
+    };
+    for (const [pattern, dayIdx] of Object.entries(SHORT_DAYS)) {
+      if (normalized.includes(pattern)) {
+        const current = result.getDay();
+        let daysAhead = dayIdx - current;
+        if (daysAhead <= 0) daysAhead += 7;
+        result.setDate(result.getDate() + daysAhead);
+        dateSet = true;
+        break;
+      }
+    }
+  }
+
+  // "בסוף השבוע" / "בסופש" → next Friday 19:00
+  if (!dateSet && /בסוף\s+השבוע|בסופש/.test(normalized)) {
+    const current = result.getDay();
+    let daysToFriday = 5 - current; // Friday = 5
+    if (daysToFriday <= 0) daysToFriday += 7;
+    result.setDate(result.getDate() + daysToFriday);
+    dateSet = true;
   }
 
   // --- Determine hour and minute ---
@@ -249,18 +286,25 @@ export function parseAbsoluteTime(
   }
 
   // Standalone time-of-day keywords (only if no specific hour set)
+  // Supports both ב-prefix (בבוקר) and ה-prefix (הבוקר, הערב) forms
   if (!hourSet) {
-    if (/בבוקר/.test(normalized)) {
+    if (/(?:בבוקר|הבוקר)/.test(normalized)) {
       hour = 8;
       hourSet = true;
-    } else if (/בצהריים/.test(normalized)) {
+    } else if (/(?:בצהריים|הצהריים)/.test(normalized)) {
       hour = 12;
       hourSet = true;
-    } else if (/בערב/.test(normalized)) {
+    } else if (/(?:אחרי\s+הצהריים|אחה"צ|אחהצ)/.test(normalized)) {
+      hour = 15;
+      hourSet = true;
+    } else if (/(?:בערב|הערב)/.test(normalized)) {
       hour = 19;
       hourSet = true;
-    } else if (/בלילה/.test(normalized)) {
+    } else if (/(?:בלילה|הלילה)/.test(normalized)) {
       hour = 22;
+      hourSet = true;
+    } else if (/לפנות\s+בוקר/.test(normalized)) {
+      hour = 5;
       hourSet = true;
     }
   }
@@ -270,7 +314,7 @@ export function parseAbsoluteTime(
     const hasEvening = /בערב/.test(normalized);
     const hasNight = /בלילה/.test(normalized);
     const hasMorning = /בבוקר/.test(normalized);
-    const hasAfternoon = /אחרי\s+הצהריים|אחה"צ/.test(normalized);
+    const hasAfternoon = /אחרי\s+הצהריים|אחה"צ|אחהצ/.test(normalized);
 
     if ((hasEvening || hasNight) && hour >= 1 && hour <= 9) {
       hour += 12;
