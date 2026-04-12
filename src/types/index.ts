@@ -27,6 +27,7 @@ export interface ConversationEntry {
   result: string;
   status: 'success' | 'error' | 'pending';
   timestamp: number;
+  smsMessages?: SmsMessage[];
 }
 
 export interface NotificationItem {
@@ -42,6 +43,9 @@ export interface Reminder {
   text: string;
   triggerTime: number;
   createdAt: number;
+  notificationId: string;
+  completed: boolean;
+  snoozedUntil: number | null;
 }
 
 export interface Contact {
@@ -50,4 +54,17 @@ export interface Contact {
   phoneNumber: string;
 }
 
+export interface SmsMessage {
+  address: string;
+  body: string;
+  date: number;
+}
+
 export type VoiceStatus = 'idle' | 'listening' | 'processing' | 'speaking';
+
+export interface PendingDisambiguation {
+  conversationId: string;
+  intent: ParsedIntent;
+  candidates: Contact[];
+  correctedMessage: string;
+}

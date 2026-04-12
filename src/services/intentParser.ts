@@ -25,15 +25,104 @@ const UNKNOWN_INTENT: ParsedIntent = {
   source: 'regex',
 };
 
-// Detects "הודעה האחרונה" / "הודעה אחרונה" (singular last) vs plural
+// Parse how many SMS messages the user asked for
 function smsCount(text: string): number {
-  return /הודע[הת]\s+(?:ה)?אחרונה/.test(text) ? 1 : 5;
+  // "הודעה האחרונה" / "הודעה אחרונה" → 1
+  if (/הודע[הת]\s+(?:ה)?אחרונה/.test(text)) return 1;
+
+  // Digit: "3 הודעות" / "5 הודעות"
+  const digitMatch = text.match(/(\d+)\s+הודעו?ת/);
+  if (digitMatch) return Math.min(parseInt(digitMatch[1], 10), 5);
+
+  // Hebrew number words before הודעות
+  const SMS_NUMBERS: Record<string, number> = {
+    'שתי': 2, 'שתיים': 2, 'שני': 2, 'שניים': 2,
+    'שלוש': 3, 'שלושה': 3, 'שלושת': 3,
+    'ארבע': 4, 'ארבעה': 4, 'ארבעת': 4,
+    'חמש': 5, 'חמישה': 5, 'חמשת': 5,
+    'שש': 6, 'שישה': 6, 'ששת': 6,
+    'שבע': 7, 'שבעה': 7, 'שבעת': 7,
+    'שמונה': 8, 'שמונת': 8,
+    'תשע': 9, 'תשעה': 9, 'תשעת': 9,
+    'עשר': 10, 'עשרה': 10, 'עשרת': 10,
+  };
+  const hebrewMatch = text.match(
+    /(שתי|שתיים|שני|שניים|שלוש|שלושה|שלושת|ארבע|ארבעה|ארבעת|חמש|חמישה|חמשת|שש|שישה|ששת|שבע|שבעה|שבעת|שמונה|שמונת|תשע|תשעה|תשעת|עשר|עשרה|עשרת)\s+(?:ה)?הודעו?ת/
+  );
+  if (hebrewMatch && SMS_NUMBERS[hebrewMatch[1]] !== undefined) {
+    return SMS_NUMBERS[hebrewMatch[1]];
+  }
+
+  // Default
+  return 5;
 }
 
 function parseIntentWithRegex(text: string): ParsedIntent {
   console.log('[intentParser] Using REGEX parser for:', text);
 
-  // 1. SEND_WHATSAPP — checked before SEND_SMS so "הודעה" verbs are claimed here first
+  // ── 0. SET_REMINDER — checked FIRST so reminder content containing action
+  //    keywords (לחייג, לשלוח, לפתוח etc.) is not hijacked by later patterns ──
+
+  // LIST_REMINDERS — various Hebrew phrasings for "show me my reminders"
+  if (
+    /(?:מה|איזה|אילו|כמה)\s+(?:ה)?תזכורות\s+(?:שלי|שיש\s+לי|יש\s+לי)/.test(text) ||
+    /(?:תגיד|אמור)\s+לי.*תזכורות/.test(text) ||
+    /(?:תראה|תראי|הראה|הראי|תציג|הצג|תקרא|קרא|תפתח|פתח)\s+(?:לי\s+)?(?:את\s+)?(?:ה)?תזכורות/.test(text) ||
+    /יש\s+לי\s+תזכורות/.test(text) ||
+    /רשימת\s+(?:ה)?תזכורות/.test(text) ||
+    /^(?:ה)?תזכורות(?:\s+שלי)?$/.test(text.trim())
+  ) {
+    return buildReminderIntent('__LIST__', null);
+  }
+
+  // SET_REMINDER — 5 pattern families (A-E)
+  const POLITE = '(?:(?:בבקשה|אפשר|תוכל|תוכלי)\\s+)?';
+  const REMIND_VERBS = '(?:תזכיר|תזכירי|הזכר|הזכירי|להזכיר)';
+  const SET_VERBS = '(?:שים|שימי|תקבע|תקבעי|תעשה|תעשי|רשום|רשמי)';
+  const DONT_FORGET_A = 'אל\\s+(?:תתן|תתני)\\s+לי\\s+לשכוח';
+  const DONT_FORGET_B = 'אל\\s+(?:תשכח|תשכחי)\\s+להזכיר\\s+לי';
+  const ALERT_VERBS = '(?:תתריע|תתריעי|תיידע|תיידעי)';
+  const TIME_ANCHOR = '((?:בעוד|לעוד|מחר|מחרתיים|בשעה|ב-?\\d|ביום|בבוקר|בצהריים|בערב|בלילה|עוד).+?)';
+
+  let rm: RegExpMatchArray | null;
+
+  // Pattern A: REMIND_VERB לי [time] [ל/ש + text]
+  rm = text.match(new RegExp(POLITE + REMIND_VERBS + '\\s+לי\\s+' + TIME_ANCHOR + '\\s+(?:ל|ש)(.+)', 'i'));
+  if (rm) return buildReminderIntent(rm[2], rm[1]);
+
+  // Pattern B: REMIND_VERB לי [text] [time]
+  rm = text.match(new RegExp(POLITE + REMIND_VERBS + '\\s+לי\\s+(.+?)\\s+' + TIME_ANCHOR + '$', 'i'));
+  if (rm) return buildReminderIntent(rm[1], rm[2]);
+
+  // Pattern C: SET_VERB לי תזכורת [time?] [ל/ש + text]
+  rm = text.match(new RegExp(POLITE + SET_VERBS + '\\s+לי\\s+תזכורת\\s+' + TIME_ANCHOR + '\\s+(?:ל|ש)(.+)', 'i'));
+  if (rm) return buildReminderIntent(rm[2], rm[1]);
+
+  // Pattern C (no time): "רשום לי תזכורת לקנות מתנה"
+  rm = text.match(new RegExp(POLITE + SET_VERBS + '\\s+לי\\s+תזכורת\\s+(.+)', 'i'));
+  if (rm) return buildReminderIntent(rm[1], null);
+
+  // Pattern D (time-first): "אל תתן לי לשכוח בעוד שעה להוציא כביסה"
+  rm = text.match(new RegExp('(?:' + DONT_FORGET_A + '|' + DONT_FORGET_B + ')\\s+' + TIME_ANCHOR + '\\s+(?:ל|ש)(.+)', 'i'));
+  if (rm) return buildReminderIntent(rm[2], rm[1]);
+
+  // Pattern D (text-first): "אל תתן לי לשכוח לקנות חלב בערב"
+  rm = text.match(new RegExp('(?:' + DONT_FORGET_A + '|' + DONT_FORGET_B + ')\\s+(.+?)\\s+' + TIME_ANCHOR + '$', 'i'));
+  if (rm) return buildReminderIntent(rm[1], rm[2]);
+
+  // Pattern D (no time): "אל תתן לי לשכוח לקנות חלב"
+  rm = text.match(new RegExp('(?:' + DONT_FORGET_A + '|' + DONT_FORGET_B + ')\\s+(.+)', 'i'));
+  if (rm) return buildReminderIntent(rm[1], null);
+
+  // Pattern E: ALERT_VERB [לי|אותי] [time?] [ש/ל/על + text]
+  rm = text.match(new RegExp(POLITE + ALERT_VERBS + '\\s+(?:לי|אותי)\\s+' + TIME_ANCHOR + '\\s+(?:ש|ל|על\\s+)(.+)', 'i'));
+  if (rm) return buildReminderIntent(rm[2], rm[1]);
+
+  // Pattern E (no time): "תתריע לי שצריך לצאת"
+  rm = text.match(new RegExp(POLITE + ALERT_VERBS + '\\s+(?:לי|אותי)\\s+(?:ש|ל|על\\s+)(.+)', 'i'));
+  if (rm) return buildReminderIntent(rm[1], null);
+
+  // ── 1. SEND_WHATSAPP — checked before SEND_SMS so "הודעה" verbs are claimed here first
   const WA_VERBS =
     '(?:תשלח|תשלחי|שלח|שלחי|לשלוח|תרשום|תרשמי|תכתוב|תכתבי|תגיד|תגידי|תודיע|תודיעי|תעביר|תעבירי)';
   const WA_PLATFORM_INNER = '(?:וואטסאפ|ווצאפ|ווטסאפ|whatsapp)';
@@ -45,18 +134,18 @@ function parseIntentWithRegex(text: string): ParsedIntent {
   const sendWaPatternA = new RegExp(
     `(?:(?:אפשר|בבקשה|תוכל|תוכלי)\\s+)?${WA_VERBS}\\s+` +
     `(?:(?:(?:הודעת|הודעה)\\s+)?${WA_PLATFORM}\\s+|הודעה\\s+)?` +
-    `(?:ל|אל)([^?!.\\n]+?)\\s+ש?(.+)`,
+    `(?:ל|אל)([^?!.\\n]+?)\\s+(.+)`,
     'i',
   );
   // Pattern B: "לשלוח + optional noun + platform + ל..." form
   const sendWaPatternB = new RegExp(
-    `לשלוח\\s+(?:(?:הודעת|הודעה)\\s+)?${WA_PLATFORM}\\s+(?:ל|אל)([^?!.\\n]+?)\\s+ש?(.+)`,
+    `לשלוח\\s+(?:(?:הודעת|הודעה)\\s+)?${WA_PLATFORM}\\s+(?:ל|אל)([^?!.\\n]+?)\\s+(.+)`,
     'i',
   );
   // Pattern C: implicit messaging verbs — never used for SMS/calls
   // min 2 chars for contact to avoid capturing single-letter pronouns (לו/לה)
   const sendWaPatternC = new RegExp(
-    `(?:תרשום|תרשמי|תכתוב|תכתבי|תגיד|תגידי|תודיע|תודיעי|תעביר|תעבירי)\\s+ל([^\\s?!.\\n]{2,})\\s+(.+)`,
+    `(?:תרשום|תרשמי|תכתוב|תכתבי|תגיד|תגידי|תודיע|תודיעי|תעביר|תעבירי)\\s+ל([^?!.\\n]{2,}?)\\s+(.+)`,
   );
 
   const sendWaMatch =
@@ -66,7 +155,6 @@ function parseIntentWithRegex(text: string): ParsedIntent {
 
   if (sendWaMatch) {
     const rawMessage = sendWaMatch[2]
-      .replace(/^ש/, '')                                                      // strip leading ש conjunction
       .replace(/\s+(?:ב|ה)?(?:וואטסאפ|ווצאפ|ווטסאפ|whatsapp)\s*$/i, '')    // strip platform keyword from end
       .trim();
     return {
@@ -127,9 +215,8 @@ function parseIntentWithRegex(text: string): ParsedIntent {
     };
   }
 
-  // 5. READ_SMS — count=1 for singular "הודעה האחרונה", else 5
-  // Note: \b does not work with Hebrew (non-ASCII) — use plain alternation
-  if (/(?:תקרא|קרא|תראה|הצג).*הודע|הודע(?:ה|ות).*שלי/.test(text)) {
+  // 5. READ_SMS — supports "תקרא/תקריא/תראה/תראי לי X הודעות"
+  if (/(?:תקרא|תקראי|קרא|קראי|תקריא|תקריאי|הקריא|הקריאי|תראה|תראי|הצג|הציגי|הראה|הראי).*הודע|הודע(?:ה|ות).*(?:שלי|שקיבלתי|האחרונ)/.test(text)) {
     return {
       intent: 'READ_SMS',
       contact: null,
@@ -171,22 +258,31 @@ function parseIntentWithRegex(text: string): ParsedIntent {
     };
   }
 
-  // 8. SET_REMINDER
-  const reminderMatch = text.match(/תזכיר\s+לי\s+(.+?)\s+(ל.+|ש.+)/);
-  if (reminderMatch) {
-    return {
-      intent: 'SET_REMINDER',
-      contact: null,
-      message: null,
-      appName: null,
-      reminderText: reminderMatch[1].trim(),
-      reminderTime: reminderMatch[2].trim(),
-      count: null,
-      source: 'regex',
-    };
+  return UNKNOWN_INTENT;
+}
+
+function buildReminderIntent(rawText: string, rawTime: string | null): ParsedIntent {
+  // Strip leading ל/ש only when they are conjunctions, not part of a verb
+  let text = rawText.trim();
+  if (/^[לש]\s/.test(text)) {
+    text = text.slice(2);
+  } else if (/^[לש](?=[א-ת])/.test(text) && !/^(?:לא|של|שלי)/.test(text)) {
+    // Keep infinitive-ל (לקנות, להתקשר) — only strip bare conjunction ש
+    if (text.startsWith('ש')) {
+      text = text.slice(1);
+    }
   }
 
-  return UNKNOWN_INTENT;
+  return {
+    intent: 'SET_REMINDER',
+    contact: null,
+    message: null,
+    appName: null,
+    reminderText: text.trim(),
+    reminderTime: rawTime?.trim() ?? null,
+    count: null,
+    source: 'regex',
+  };
 }
 
 async function parseIntentWithGemini(text: string, apiKey: string): Promise<ParsedIntent> {

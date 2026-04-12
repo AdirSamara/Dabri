@@ -1,6 +1,6 @@
 import { PermissionsAndroid, Platform, NativeModules } from 'react-native';
 import { registerHandler } from './actionDispatcher';
-import { resolveContact } from './contactResolver';
+import { resolveContact, resolveContactCandidates } from './contactResolver';
 import { ParsedIntent } from '../types';
 import type { ActionResult } from './actionDispatcher';
 
@@ -25,7 +25,17 @@ async function handleMakeCall(intent: ParsedIntent): Promise<ActionResult> {
     return { success: false, message: 'לא צוין איש קשר לחיוג' };
   }
 
-  const contact = await resolveContact(intent.contact);
+  const candidates = await resolveContactCandidates(intent.contact);
+
+  if (candidates.length > 1) {
+    return {
+      success: false,
+      message: candidates.map(c => c.displayName).join(', '),
+      disambiguation: { candidates, intent, correctedMessage: '' },
+    };
+  }
+
+  const contact = candidates[0] ?? null;
   if (!contact) {
     return { success: false, message: `לא מצאתי איש קשר בשם ${intent.contact}` };
   }

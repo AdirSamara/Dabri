@@ -1,6 +1,6 @@
 import { Linking } from 'react-native';
 import { registerHandler } from './actionDispatcher';
-import { resolveContact } from './contactResolver';
+import { resolveContactWithAlignment } from './contactResolver';
 import { ParsedIntent } from '../types';
 import type { ActionResult } from './actionDispatcher';
 
@@ -22,13 +22,30 @@ async function handleSendWhatsApp(intent: ParsedIntent): Promise<ActionResult> {
     return { success: false, message: 'לא צוין תוכן ההודעה' };
   }
 
-  const contact = await resolveContact(intent.contact);
+  const { contact, correctedMessage, allCandidates } = await resolveContactWithAlignment(
+    intent.contact,
+    intent.message,
+  );
+
+  if (allCandidates.length > 1) {
+    return {
+      success: false,
+      message: allCandidates.map(c => c.displayName).join(', '),
+      disambiguation: { candidates: allCandidates, intent, correctedMessage },
+    };
+  }
+
   if (!contact) {
     return { success: false, message: `לא מצאתי איש קשר בשם ${intent.contact}` };
   }
 
+  const finalMessage = correctedMessage || intent.message;
+  if (!finalMessage.trim()) {
+    return { success: false, message: 'לא צוין תוכן ההודעה' };
+  }
+
   const phone = formatPhoneForWhatsApp(contact.phoneNumber);
-  const encodedMessage = encodeURIComponent(intent.message);
+  const encodedMessage = encodeURIComponent(finalMessage);
   const url = `whatsapp://send?phone=${phone}&text=${encodedMessage}`;
 
   try {

@@ -13,6 +13,7 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@react-native-async-storage/async-storage": "^1.24.0",
+    "@react-native-community/datetimepicker": "^8.3.0",
     "@react-native-voice/voice": "^3.2.4",
     "@react-native/new-app-screen": "0.85.0",
     "@react-navigation/native": "^7.2.2",

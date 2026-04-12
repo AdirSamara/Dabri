@@ -6,6 +6,7 @@ import {
   ConversationEntry,
   NotificationItem,
   Reminder,
+  PendingDisambiguation,
 } from '../types';
 import { MAX_CONVERSATION_LOG, MAX_NOTIFICATIONS_BUFFER } from '../utils/constants';
 
@@ -23,10 +24,14 @@ interface DabriState {
   // Reminders (persisted)
   reminders: Reminder[];
 
+  // Disambiguation (session-only)
+  pendingDisambiguation: PendingDisambiguation | null;
+
   // Settings (persisted)
   geminiApiKey: string;
   ttsSpeed: number;
   isDarkMode: boolean;
+  silenceTimeout: number; // ms after last speech to auto-stop (1000, 1500, 2000)
   contactAliases: Record<string, string>;
 
   // Actions
@@ -38,9 +43,14 @@ interface DabriState {
   addNotification: (notification: NotificationItem) => void;
   addReminder: (reminder: Reminder) => void;
   removeReminder: (id: string) => void;
+  updateReminder: (id: string, updates: Partial<Reminder>) => void;
+  completeReminder: (id: string) => void;
+  snoozeReminder: (id: string, minutes: number) => void;
+  setPendingDisambiguation: (data: PendingDisambiguation | null) => void;
   setGeminiApiKey: (key: string) => void;
   setTtsSpeed: (speed: number) => void;
   setDarkMode: (dark: boolean) => void;
+  setSilenceTimeout: (ms: number) => void;
   setContactAlias: (name: string, alias: string) => void;
   removeContactAlias: (name: string) => void;
 }
@@ -54,9 +64,11 @@ export const useDabriStore = create<DabriState>()(
       conversations: [],
       recentNotifications: [],
       reminders: [],
+      pendingDisambiguation: null,
       geminiApiKey: '',
       ttsSpeed: 0.6,
       isDarkMode: false,
+      silenceTimeout: 1000,
       contactAliases: {},
 
       // Actions
@@ -95,11 +107,41 @@ export const useDabriStore = create<DabriState>()(
           reminders: state.reminders.filter((r) => r.id !== id),
         })),
 
+      updateReminder: (id, updates) =>
+        set((state) => ({
+          reminders: state.reminders.map((r) =>
+            r.id === id ? { ...r, ...updates } : r,
+          ),
+        })),
+
+      completeReminder: (id) =>
+        set((state) => ({
+          reminders: state.reminders.map((r) =>
+            r.id === id ? { ...r, completed: true } : r,
+          ),
+        })),
+
+      snoozeReminder: (id, minutes) =>
+        set((state) => {
+          const snoozeTime = Date.now() + minutes * 60 * 1000;
+          return {
+            reminders: state.reminders.map((r) =>
+              r.id === id
+                ? { ...r, triggerTime: snoozeTime, snoozedUntil: snoozeTime }
+                : r,
+            ),
+          };
+        }),
+
+      setPendingDisambiguation: (data) => set({ pendingDisambiguation: data }),
+
       setGeminiApiKey: (key) => set({ geminiApiKey: key }),
 
       setTtsSpeed: (speed) => set({ ttsSpeed: speed }),
 
       setDarkMode: (dark) => set({ isDarkMode: dark }),
+
+      setSilenceTimeout: (ms) => set({ silenceTimeout: ms }),
 
       setContactAlias: (name, alias) =>
         set((state) => ({
@@ -120,6 +162,7 @@ export const useDabriStore = create<DabriState>()(
         geminiApiKey: state.geminiApiKey,
         ttsSpeed: state.ttsSpeed,
         isDarkMode: state.isDarkMode,
+        silenceTimeout: state.silenceTimeout,
         contactAliases: state.contactAliases,
       }),
       onRehydrateStorage: () => (state, error) => {

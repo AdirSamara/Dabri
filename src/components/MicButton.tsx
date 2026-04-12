@@ -23,17 +23,19 @@ export function MicButton({ status, onPress }: MicButtonProps): React.JSX.Elemen
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    if (status === 'listening') {
+    if (status === 'listening' || status === 'speaking') {
+      const speed = status === 'listening' ? 600 : 900;
+      const scale = status === 'listening' ? 1.2 : 1.15;
       const loop = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
-            toValue: 1.2,
-            duration: 600,
+            toValue: scale,
+            duration: speed,
             useNativeDriver: true,
           }),
           Animated.timing(pulseAnim, {
             toValue: 1,
-            duration: 600,
+            duration: speed,
             useNativeDriver: true,
           }),
         ]),
@@ -56,7 +58,7 @@ export function MicButton({ status, onPress }: MicButtonProps): React.JSX.Elemen
           styles.pulseRing,
           {
             backgroundColor: color,
-            opacity: status === 'listening' ? 0.3 : 0,
+            opacity: (status === 'listening' || status === 'speaking') ? 0.3 : 0,
             transform: [{ scale: pulseAnim }],
           },
         ]}
@@ -68,15 +70,20 @@ export function MicButton({ status, onPress }: MicButtonProps): React.JSX.Elemen
         onPress={onPress}
         activeOpacity={0.8}
       >
-        {/* Mic icon made of Views */}
-        <View style={styles.micContainer}>
-          {/* Mic body */}
-          <View style={[styles.micBody, { borderColor: '#fff', backgroundColor: '#fff' }]} />
-          {/* Mic base arc */}
-          <View style={[styles.micBase, { borderColor: '#fff' }]} />
-          {/* Mic stand */}
-          <View style={[styles.micStand, { backgroundColor: '#fff' }]} />
-        </View>
+        {status === 'speaking' ? (
+          /* Stop icon (square) when TTS is speaking */
+          <View style={styles.stopIcon} />
+        ) : (
+          /* Mic icon made of Views */
+          <View style={styles.micContainer}>
+            {/* Mic body */}
+            <View style={[styles.micBody, { borderColor: '#fff', backgroundColor: '#fff' }]} />
+            {/* Mic base arc */}
+            <View style={[styles.micBase, { borderColor: '#fff' }]} />
+            {/* Mic stand */}
+            <View style={[styles.micStand, { backgroundColor: '#fff' }]} />
+          </View>
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -130,5 +137,11 @@ const styles = StyleSheet.create({
     width: 2.5,
     height: 8,
     marginTop: 0,
+  },
+  stopIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 4,
+    backgroundColor: '#fff',
   },
 });

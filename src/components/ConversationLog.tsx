@@ -4,13 +4,24 @@ import {
   View,
   Text,
   StyleSheet,
+  TouchableOpacity,
 } from 'react-native';
-import { ConversationEntry, Intent } from '../types';
+import { ConversationEntry, Intent, Reminder, PendingDisambiguation, Contact } from '../types';
 import { useTheme } from '../utils/theme';
+import { ReminderListCard } from './ReminderListCard';
 
 interface ConversationLogProps {
   conversations: ConversationEntry[];
+  onEntryPress?: (entry: ConversationEntry) => void;
+  reminders?: Reminder[];
+  onDeleteReminder?: (id: string) => void;
+  onEditReminder?: (reminder: Reminder) => void;
+  formatReminderTime?: (date: Date) => string;
+  pendingDisambiguation?: PendingDisambiguation | null;
+  onDisambiguate?: (contact: Contact) => void;
 }
+
+const OPTION_LABELS = ['אחת', 'שתיים', 'שלוש'];
 
 const INTENT_LABELS: Record<Intent, string> = {
   SEND_SMS: 'שליחת הודעה',
@@ -39,7 +50,18 @@ function getRelativeTime(timestamp: number): string {
   return 'היום';
 }
 
-function ConversationItem({ item }: { item: ConversationEntry }): React.JSX.Element {
+interface ConversationItemProps {
+  item: ConversationEntry;
+  onPress?: () => void;
+  reminders?: Reminder[];
+  onDeleteReminder?: (id: string) => void;
+  onEditReminder?: (reminder: Reminder) => void;
+  formatReminderTime?: (date: Date) => string;
+  disambiguationCandidates?: Contact[];
+  onDisambiguate?: (contact: Contact) => void;
+}
+
+function ConversationItem({ item, onPress, reminders, onDeleteReminder, onEditReminder, formatReminderTime, disambiguationCandidates, onDisambiguate }: ConversationItemProps): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => StyleSheet.create({
     item: {
@@ -107,11 +129,51 @@ function ConversationItem({ item }: { item: ConversationEntry }): React.JSX.Elem
       writingDirection: 'rtl',
       textAlign: 'right',
     },
+    tapHint: {
+      fontSize: 11,
+      color: '#2196F3',
+      writingDirection: 'rtl',
+      textAlign: 'right',
+      marginTop: 6,
+    },
+    disambiguationContainer: {
+      marginTop: 10,
+      gap: 8,
+    },
+    disambiguationButton: {
+      backgroundColor: '#2196F3',
+      borderRadius: 12,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      alignItems: 'center',
+    },
+    disambiguationButtonText: {
+      color: '#fff',
+      fontSize: 15,
+      fontWeight: '600',
+      writingDirection: 'rtl',
+    },
   }), [theme]);
 
   const dotColor = STATUS_COLORS[item.status];
+  const isReminderSuccess =
+    item.parsedIntent?.intent === 'SET_REMINDER' &&
+    item.status === 'success' &&
+    item.parsedIntent.reminderText !== '__LIST__' &&
+    item.parsedIntent.reminderText !== null;
 
-  return (
+  const isSmsReadable =
+    item.parsedIntent?.intent === 'READ_SMS' &&
+    item.status === 'success' &&
+    item.smsMessages &&
+    item.smsMessages.length > 0;
+
+  const isReminderList =
+    item.parsedIntent?.intent === 'SET_REMINDER' &&
+    item.status === 'success' &&
+    (item.parsedIntent.reminderText === '__LIST__' || item.parsedIntent.reminderText === null);
+
+  const content = (
     <View style={styles.item}>
       <Text style={styles.timeText}>{getRelativeTime(item.timestamp)}</Text>
       <Text style={styles.userText}>{item.userText}</Text>
@@ -119,7 +181,7 @@ function ConversationItem({ item }: { item: ConversationEntry }): React.JSX.Elem
       {item.parsedIntent && item.parsedIntent.intent !== 'UNKNOWN' && (
         <View style={styles.intentRow}>
           <Text style={styles.intentLabel}>
-            {INTENT_LABELS[item.parsedIntent.intent]}
+            {isReminderList ? 'רשימת תזכורות' : INTENT_LABELS[item.parsedIntent.intent]}
           </Text>
           {item.parsedIntent.source === 'gemini' && (
             <View style={styles.geminiSource}>
@@ -129,17 +191,59 @@ function ConversationItem({ item }: { item: ConversationEntry }): React.JSX.Elem
         </View>
       )}
 
-      {item.result.length > 0 && (
+      {isReminderList && reminders && onDeleteReminder && onEditReminder && formatReminderTime ? (
+        <ReminderListCard
+          reminders={reminders}
+          onDelete={onDeleteReminder}
+          onEdit={onEditReminder}
+          formatTime={formatReminderTime}
+        />
+      ) : item.result.length > 0 ? (
         <View style={styles.resultRow}>
           <View style={[styles.statusDot, { backgroundColor: dotColor }]} />
           <Text style={styles.resultText}>{item.result}</Text>
         </View>
+      ) : null}
+
+      {isReminderSuccess && onPress && (
+        <Text style={styles.tapHint}>{'לחץ לפרטים ‹'}</Text>
+      )}
+
+      {isSmsReadable && onPress && (
+        <Text style={styles.tapHint}>{'לחץ לצפייה מלאה ‹'}</Text>
+      )}
+
+      {disambiguationCandidates && disambiguationCandidates.length > 0 && onDisambiguate && (
+        <View style={styles.disambiguationContainer}>
+          {disambiguationCandidates.map((c, i) => (
+            <TouchableOpacity
+              key={c.recordID}
+              style={styles.disambiguationButton}
+              onPress={() => onDisambiguate(c)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.disambiguationButtonText}>
+                {OPTION_LABELS[i]}: {c.displayName}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       )}
     </View>
   );
+
+  if ((isReminderSuccess || isSmsReadable) && onPress) {
+    return (
+      <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+        {content}
+      </TouchableOpacity>
+    );
+  }
+
+  return content;
 }
 
-export function ConversationLog({ conversations }: ConversationLogProps): React.JSX.Element {
+export function ConversationLog({ conversations, onEntryPress, reminders, onDeleteReminder, onEditReminder, formatReminderTime, pendingDisambiguation, onDisambiguate }: ConversationLogProps): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => StyleSheet.create({
     emptyContainer: {
@@ -176,7 +280,22 @@ export function ConversationLog({ conversations }: ConversationLogProps): React.
     <FlatList
       data={conversations}
       keyExtractor={(item) => item.id}
-      renderItem={({ item }) => <ConversationItem item={item} />}
+      renderItem={({ item }) => (
+        <ConversationItem
+          item={item}
+          onPress={onEntryPress ? () => onEntryPress(item) : undefined}
+          reminders={reminders}
+          onDeleteReminder={onDeleteReminder}
+          onEditReminder={onEditReminder}
+          formatReminderTime={formatReminderTime}
+          disambiguationCandidates={
+            pendingDisambiguation?.conversationId === item.id
+              ? pendingDisambiguation.candidates
+              : undefined
+          }
+          onDisambiguate={onDisambiguate}
+        />
+      )}
       inverted
       contentContainerStyle={styles.listContent}
       showsVerticalScrollIndicator={false}
