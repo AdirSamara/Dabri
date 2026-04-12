@@ -74,18 +74,6 @@ export function HomeScreen(): React.JSX.Element {
       textAlign: 'center',
       color: theme.text,
     },
-    stopButton: {
-      marginTop: 12,
-      backgroundColor: '#FF3B30',
-      paddingVertical: 10,
-      paddingHorizontal: 20,
-      borderRadius: 10,
-    },
-    stopText: {
-      color: '#fff',
-      fontWeight: 'bold',
-      fontSize: 14,
-    },
     mainContent: { flex: 1 },
     conversationContainer: { flex: 1 },
     micTopSection: { padding: 20, alignItems: 'center' },
@@ -395,16 +383,6 @@ export function HomeScreen(): React.JSX.Element {
                 {!isOverlayVisible && (
                     <View style={styles.micTopSection}>
                       <MicButton status={voiceStatus} onPress={handleMicPress} />
-
-                      {voiceStatus === 'speaking' && (
-                          <TouchableOpacity
-                              style={styles.stopButton}
-                              onPress={stopSpeaking}
-                          >
-                            <Text style={styles.stopText}>עצור ⏹️</Text>
-                          </TouchableOpacity>
-                      )}
-
                       <View style={styles.divider} />
                     </View>
                 )}
@@ -427,15 +405,6 @@ export function HomeScreen(): React.JSX.Element {
                 <Text style={styles.greeting}>שלום!</Text>
 
                 <MicButton status={voiceStatus} onPress={handleMicPress} />
-
-                {voiceStatus === 'speaking' && (
-                    <TouchableOpacity
-                        style={styles.stopButton}
-                        onPress={stopSpeaking}
-                    >
-                      <Text style={styles.stopText}>עצור ⏹️</Text>
-                    </TouchableOpacity>
-                )}
 
                 <View style={styles.chips}>
                   <TouchableOpacity style={styles.chip} onPress={handleMicPress}>
