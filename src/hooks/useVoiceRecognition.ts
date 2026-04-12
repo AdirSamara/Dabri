@@ -12,8 +12,10 @@ interface UseVoiceRecognitionReturn {
   stopListening: () => Promise<void>;
 }
 
-// Maximum time the mic stays open (hard cap)
-const MAX_LISTENING_MS = 7000;
+// Maximum time the mic stays open (hard cap).
+// Google Assistant / Gemini Live use ~15-20s for long-form dictation;
+// Siri caps at ~10-15s. 15s is a good balance for Hebrew message dictation.
+const MAX_LISTENING_MS = 15000;
 
 export function useVoiceRecognition({
   onResult,
