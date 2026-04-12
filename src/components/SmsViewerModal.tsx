@@ -362,22 +362,22 @@ export function SmsViewerModal({
                 <TouchableOpacity
                   style={[
                     styles.navButton,
-                    selectedIndex <= 0 && styles.navButtonDisabled,
-                  ]}
-                  onPress={() => setSelectedIndex((i) => Math.max((i ?? 1) - 1, 0))}
-                  disabled={selectedIndex <= 0}
-                  activeOpacity={0.7}>
-                  <Text style={styles.navButtonText}>{'הבא >'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.navButton,
                     selectedIndex >= messages.length - 1 && styles.navButtonDisabled,
                   ]}
                   onPress={() => setSelectedIndex((i) => Math.min((i ?? 0) + 1, messages.length - 1))}
                   disabled={selectedIndex >= messages.length - 1}
                   activeOpacity={0.7}>
                   <Text style={styles.navButtonText}>{'< הקודם'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.navButton,
+                    selectedIndex <= 0 && styles.navButtonDisabled,
+                  ]}
+                  onPress={() => setSelectedIndex((i) => Math.max((i ?? 1) - 1, 0))}
+                  disabled={selectedIndex <= 0}
+                  activeOpacity={0.7}>
+                  <Text style={styles.navButtonText}>{'הבא >'}</Text>
                 </TouchableOpacity>
               </View>
 
