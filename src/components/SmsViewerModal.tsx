@@ -71,7 +71,7 @@ export function SmsViewerModal({
         },
         // ── Header ──
         headerRow: {
-          flexDirection: 'row-reverse',
+          flexDirection: 'row',
           justifyContent: 'space-between',
           alignItems: 'center',
           marginBottom: 10,
@@ -88,14 +88,14 @@ export function SmsViewerModal({
         },
         // ── Compact list row ──
         listRowContainer: {
-          flexDirection: 'row-reverse',
+          flexDirection: 'row',
           alignItems: 'center',
           marginBottom: 6,
           gap: 8,
         },
         listRow: {
           flex: 1,
-          flexDirection: 'row-reverse',
+          flexDirection: 'row',
           alignItems: 'center',
           backgroundColor: theme.surface,
           borderRadius: 12,
@@ -120,7 +120,7 @@ export function SmsViewerModal({
           flex: 1,
         },
         listTopRow: {
-          flexDirection: 'row-reverse',
+          flexDirection: 'row',
           justifyContent: 'space-between',
           alignItems: 'center',
           marginBottom: 2,
@@ -160,7 +160,7 @@ export function SmsViewerModal({
           marginBottom: 12,
         },
         detailSenderRow: {
-          flexDirection: 'row-reverse',
+          flexDirection: 'row',
           alignItems: 'center',
           marginBottom: 12,
           gap: 10,
@@ -215,7 +215,7 @@ export function SmsViewerModal({
           color: '#FFFFFF',
         },
         navRow: {
-          flexDirection: 'row-reverse',
+          flexDirection: 'row',
           gap: 8,
           marginBottom: 8,
         },
