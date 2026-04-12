@@ -8,15 +8,14 @@ interface AppIconProps {
 /** Height ratios for the five waveform bars (0-1). */
 const BAR_RATIOS = [0.38, 0.68, 1, 0.58, 0.32];
 
-/**
- * Dabri app icon — abstract audio-waveform bars inside a rounded square.
- * Represents voice / speech in a modern, language-neutral way.
- */
+/** Bar colors — identical to the launcher icon. */
+const BAR_COLORS = ['#A3B8E8', '#C8D8F4', '#FFFFFF', '#BBC9EF', '#96ABDF'];
+
 export function AppIcon({ size = 100 }: AppIconProps): React.JSX.Element {
   const s = size;
-  const barWidth = s * 0.09;
-  const barGap = s * 0.055;
-  const maxBarHeight = s * 0.48;
+  const barWidth = s * 0.065;
+  const barGap   = s * 0.046;
+  const maxBarHeight = s * 0.52;
 
   return (
     <View
@@ -30,7 +29,7 @@ export function AppIcon({ size = 100 }: AppIconProps): React.JSX.Element {
         overflow: 'hidden',
       }}
     >
-      {/* Depth layer — mid-blue circle */}
+      {/* Single depth circle — #1976D2 */}
       <View
         style={{
           position: 'absolute',
@@ -38,30 +37,6 @@ export function AppIcon({ size = 100 }: AppIconProps): React.JSX.Element {
           height: s * 0.92,
           borderRadius: s * 0.46,
           backgroundColor: '#1976D2',
-        }}
-      />
-
-      {/* Depth layer — lighter centre */}
-      <View
-        style={{
-          position: 'absolute',
-          width: s * 0.55,
-          height: s * 0.55,
-          borderRadius: s * 0.275,
-          backgroundColor: '#1E88E5',
-        }}
-      />
-
-      {/* Highlight — subtle top-right glow */}
-      <View
-        style={{
-          position: 'absolute',
-          top: -s * 0.12,
-          right: -s * 0.12,
-          width: s * 0.45,
-          height: s * 0.45,
-          borderRadius: s * 0.225,
-          backgroundColor: 'rgba(255,255,255,0.07)',
         }}
       />
 
@@ -81,7 +56,7 @@ export function AppIcon({ size = 100 }: AppIconProps): React.JSX.Element {
               width: barWidth,
               height: maxBarHeight * ratio,
               borderRadius: barWidth / 2,
-              backgroundColor: `rgba(255,255,255,${0.65 + ratio * 0.35})`,
+              backgroundColor: BAR_COLORS[i],
             }}
           />
         ))}
