@@ -77,7 +77,7 @@ export function SettingsScreen(): React.JSX.Element {
   }), [theme]);
 
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
-  const { geminiApiKey, ttsSpeed } = useDabriStore();
+  const { geminiApiKey, ttsSpeed, reminders } = useDabriStore();
   const [isDefaultAssistant, setIsDefaultAssistant] = useState(false);
 
   const checkAssistantStatus = async () => {
@@ -115,6 +115,14 @@ export function SettingsScreen(): React.JSX.Element {
         title="מפתח API"
         subtitle={geminiApiKey ? 'פעיל' : 'לא מוגדר'}
         onPress={() => navigation.navigate('ApiKeySettings')}
+      />
+      <SettingsRow
+        title="תזכורות"
+        subtitle={(() => {
+          const active = reminders.filter((r: any) => !r.completed && r.triggerTime > Date.now()).length;
+          return active === 0 ? 'אין תזכורות פעילות' : `${active} פעילות`;
+        })()}
+        onPress={() => navigation.navigate('Reminders')}
       />
       <SettingsRow
         title="מהירות דיבור"

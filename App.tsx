@@ -9,6 +9,7 @@ import { AssistantSettingsScreen } from './src/screens/AssistantSettingsScreen';
 import { ApiKeySettingsScreen } from './src/screens/ApiKeySettingsScreen';
 import { VoiceSpeedSettingsScreen } from './src/screens/VoiceSpeedSettingsScreen';
 import { AboutScreen } from './src/screens/AboutScreen';
+import { RemindersScreen } from './src/screens/RemindersScreen';
 import { initializeServices } from './src/services';
 import { useDabriStore } from './src/store';
 import { lightTheme, darkTheme } from './src/utils/theme';
@@ -27,6 +28,7 @@ export type RootStackParamList = {
   AssistantSettings: undefined;
   ApiKeySettings: undefined;
   VoiceSpeedSettings: undefined;
+  Reminders: undefined;
   About: undefined;
 };
 
@@ -120,6 +122,11 @@ function App(): React.JSX.Element {
             name="VoiceSpeedSettings"
             component={VoiceSpeedSettingsScreen}
             options={{ headerTitle: 'מהירות דיבור' }}
+          />
+          <Stack.Screen
+            name="Reminders"
+            component={RemindersScreen}
+            options={{ headerTitle: 'תזכורות' }}
           />
           <Stack.Screen
             name="About"
