@@ -13,9 +13,10 @@ interface UseVoiceRecognitionReturn {
 }
 
 // Maximum time the mic stays open (hard cap)
-const MAX_LISTENING_MS = 8000;
-// After the last partial result, wait this long before auto-stopping
-const SILENCE_AFTER_SPEECH_MS = 2000;
+const MAX_LISTENING_MS = 7000;
+// After the last partial result, wait this long before auto-stopping.
+// ~1s matches Google Assistant / Siri behavior for command-based input.
+const SILENCE_AFTER_SPEECH_MS = 1000;
 
 export function useVoiceRecognition({
   onResult,
