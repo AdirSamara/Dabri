@@ -33,7 +33,62 @@ function smsCount(text: string): number {
 function parseIntentWithRegex(text: string): ParsedIntent {
   console.log('[intentParser] Using REGEX parser for:', text);
 
-  // 1. SEND_WHATSAPP — checked before SEND_SMS so "הודעה" verbs are claimed here first
+  // ── 0. SET_REMINDER — checked FIRST so reminder content containing action
+  //    keywords (לחייג, לשלוח, לפתוח etc.) is not hijacked by later patterns ──
+
+  // LIST_REMINDERS — "מה התזכורות שלי"
+  if (/(?:מה\s+)?(?:ה)?תזכורות\s+(?:שלי|שיש\s+לי)|(?:תגיד|אמור)\s+לי.*תזכורות/.test(text)) {
+    return buildReminderIntent('__LIST__', null);
+  }
+
+  // SET_REMINDER — 5 pattern families (A-E)
+  const POLITE = '(?:(?:בבקשה|אפשר|תוכל|תוכלי)\\s+)?';
+  const REMIND_VERBS = '(?:תזכיר|תזכירי|הזכר|הזכירי|להזכיר)';
+  const SET_VERBS = '(?:שים|שימי|תקבע|תקבעי|תעשה|תעשי|רשום|רשמי)';
+  const DONT_FORGET_A = 'אל\\s+(?:תתן|תתני)\\s+לי\\s+לשכוח';
+  const DONT_FORGET_B = 'אל\\s+(?:תשכח|תשכחי)\\s+להזכיר\\s+לי';
+  const ALERT_VERBS = '(?:תתריע|תתריעי|תיידע|תיידעי)';
+  const TIME_ANCHOR = '((?:בעוד|לעוד|מחר|מחרתיים|בשעה|ב-?\\d|ביום|בבוקר|בצהריים|בערב|בלילה|עוד).+?)';
+
+  let rm: RegExpMatchArray | null;
+
+  // Pattern A: REMIND_VERB לי [time] [ל/ש + text]
+  rm = text.match(new RegExp(POLITE + REMIND_VERBS + '\\s+לי\\s+' + TIME_ANCHOR + '\\s+(?:ל|ש)(.+)', 'i'));
+  if (rm) return buildReminderIntent(rm[2], rm[1]);
+
+  // Pattern B: REMIND_VERB לי [text] [time]
+  rm = text.match(new RegExp(POLITE + REMIND_VERBS + '\\s+לי\\s+(.+?)\\s+' + TIME_ANCHOR + '$', 'i'));
+  if (rm) return buildReminderIntent(rm[1], rm[2]);
+
+  // Pattern C: SET_VERB לי תזכורת [time?] [ל/ש + text]
+  rm = text.match(new RegExp(POLITE + SET_VERBS + '\\s+לי\\s+תזכורת\\s+' + TIME_ANCHOR + '\\s+(?:ל|ש)(.+)', 'i'));
+  if (rm) return buildReminderIntent(rm[2], rm[1]);
+
+  // Pattern C (no time): "רשום לי תזכורת לקנות מתנה"
+  rm = text.match(new RegExp(POLITE + SET_VERBS + '\\s+לי\\s+תזכורת\\s+(.+)', 'i'));
+  if (rm) return buildReminderIntent(rm[1], null);
+
+  // Pattern D (time-first): "אל תתן לי לשכוח בעוד שעה להוציא כביסה"
+  rm = text.match(new RegExp('(?:' + DONT_FORGET_A + '|' + DONT_FORGET_B + ')\\s+' + TIME_ANCHOR + '\\s+(?:ל|ש)(.+)', 'i'));
+  if (rm) return buildReminderIntent(rm[2], rm[1]);
+
+  // Pattern D (text-first): "אל תתן לי לשכוח לקנות חלב בערב"
+  rm = text.match(new RegExp('(?:' + DONT_FORGET_A + '|' + DONT_FORGET_B + ')\\s+(.+?)\\s+' + TIME_ANCHOR + '$', 'i'));
+  if (rm) return buildReminderIntent(rm[1], rm[2]);
+
+  // Pattern D (no time): "אל תתן לי לשכוח לקנות חלב"
+  rm = text.match(new RegExp('(?:' + DONT_FORGET_A + '|' + DONT_FORGET_B + ')\\s+(.+)', 'i'));
+  if (rm) return buildReminderIntent(rm[1], null);
+
+  // Pattern E: ALERT_VERB [לי|אותי] [time?] [ש/ל/על + text]
+  rm = text.match(new RegExp(POLITE + ALERT_VERBS + '\\s+(?:לי|אותי)\\s+' + TIME_ANCHOR + '\\s+(?:ש|ל|על\\s+)(.+)', 'i'));
+  if (rm) return buildReminderIntent(rm[2], rm[1]);
+
+  // Pattern E (no time): "תתריע לי שצריך לצאת"
+  rm = text.match(new RegExp(POLITE + ALERT_VERBS + '\\s+(?:לי|אותי)\\s+(?:ש|ל|על\\s+)(.+)', 'i'));
+  if (rm) return buildReminderIntent(rm[1], null);
+
+  // ── 1. SEND_WHATSAPP — checked before SEND_SMS so "הודעה" verbs are claimed here first
   const WA_VERBS =
     '(?:תשלח|תשלחי|שלח|שלחי|לשלוח|תרשום|תרשמי|תכתוב|תכתבי|תגיד|תגידי|תודיע|תודיעי|תעביר|תעבירי)';
   const WA_PLATFORM_INNER = '(?:וואטסאפ|ווצאפ|ווטסאפ|whatsapp)';
@@ -170,64 +225,6 @@ function parseIntentWithRegex(text: string): ParsedIntent {
       source: 'regex',
     };
   }
-
-  // 8. LIST_REMINDERS — "מה התזכורות שלי"
-  if (/(?:מה\s+)?(?:ה)?תזכורות\s+(?:שלי|שיש\s+לי)|(?:תגיד|אמור)\s+לי.*תזכורות/.test(text)) {
-    return buildReminderIntent('__LIST__', null);
-  }
-
-  // 9. SET_REMINDER — 5 pattern families (A-E)
-
-  // Building blocks
-  const POLITE = '(?:(?:בבקשה|אפשר|תוכל|תוכלי)\\s+)?';
-  const REMIND_VERBS = '(?:תזכיר|תזכירי|הזכר|הזכירי|להזכיר)';
-  const SET_VERBS = '(?:שים|שימי|תקבע|תקבעי|תעשה|תעשי|רשום|רשמי)';
-  const DONT_FORGET_A = 'אל\\s+(?:תתן|תתני)\\s+לי\\s+לשכוח';
-  const DONT_FORGET_B = 'אל\\s+(?:תשכח|תשכחי)\\s+להזכיר\\s+לי';
-  const ALERT_VERBS = '(?:תתריע|תתריעי|תיידע|תיידעי)';
-  const TIME_ANCHOR = '((?:בעוד|לעוד|מחר|מחרתיים|בשעה|ב-?\\d|ביום|בבוקר|בצהריים|בערב|בלילה|עוד).+?)';
-
-  let rm: RegExpMatchArray | null;
-
-  // Pattern A: REMIND_VERB לי [time] [ל/ש + text]
-  // "תזכיר לי בעוד שעה לקנות חלב"
-  rm = text.match(new RegExp(POLITE + REMIND_VERBS + '\\s+לי\\s+' + TIME_ANCHOR + '\\s+(?:ל|ש)(.+)', 'i'));
-  if (rm) return buildReminderIntent(rm[2], rm[1]);
-
-  // Pattern B: REMIND_VERB לי [text] [time]
-  // "תזכיר לי לקנות חלב בעוד שעה"
-  rm = text.match(new RegExp(POLITE + REMIND_VERBS + '\\s+לי\\s+(.+?)\\s+' + TIME_ANCHOR + '$', 'i'));
-  if (rm) return buildReminderIntent(rm[1], rm[2]);
-
-  // Pattern C: SET_VERB לי תזכורת [time?] [ל/ש + text]
-  // "שים לי תזכורת בעוד 20 דקות לצאת מהבית"
-  rm = text.match(new RegExp(POLITE + SET_VERBS + '\\s+לי\\s+תזכורת\\s+' + TIME_ANCHOR + '\\s+(?:ל|ש)(.+)', 'i'));
-  if (rm) return buildReminderIntent(rm[2], rm[1]);
-
-  // Pattern C (no time): "רשום לי תזכורת לקנות מתנה"
-  rm = text.match(new RegExp(POLITE + SET_VERBS + '\\s+לי\\s+תזכורת\\s+(.+)', 'i'));
-  if (rm) return buildReminderIntent(rm[1], null);
-
-  // Pattern D (time-first): "אל תתן לי לשכוח בעוד שעה להוציא כביסה"
-  rm = text.match(new RegExp('(?:' + DONT_FORGET_A + '|' + DONT_FORGET_B + ')\\s+' + TIME_ANCHOR + '\\s+(?:ל|ש)(.+)', 'i'));
-  if (rm) return buildReminderIntent(rm[2], rm[1]);
-
-  // Pattern D (text-first): "אל תתן לי לשכוח לקנות חלב בערב"
-  rm = text.match(new RegExp('(?:' + DONT_FORGET_A + '|' + DONT_FORGET_B + ')\\s+(.+?)\\s+' + TIME_ANCHOR + '$', 'i'));
-  if (rm) return buildReminderIntent(rm[1], rm[2]);
-
-  // Pattern D (no time): "אל תתן לי לשכוח לקנות חלב"
-  rm = text.match(new RegExp('(?:' + DONT_FORGET_A + '|' + DONT_FORGET_B + ')\\s+(.+)', 'i'));
-  if (rm) return buildReminderIntent(rm[1], null);
-
-  // Pattern E: ALERT_VERB [לי|אותי] [time?] [ש/ל/על + text]
-  // "תתריע לי בעוד חצי שעה שצריך לצאת"
-  rm = text.match(new RegExp(POLITE + ALERT_VERBS + '\\s+(?:לי|אותי)\\s+' + TIME_ANCHOR + '\\s+(?:ש|ל|על\\s+)(.+)', 'i'));
-  if (rm) return buildReminderIntent(rm[2], rm[1]);
-
-  // Pattern E (no time): "תתריע לי שצריך לצאת"
-  rm = text.match(new RegExp(POLITE + ALERT_VERBS + '\\s+(?:לי|אותי)\\s+(?:ש|ל|על\\s+)(.+)', 'i'));
-  if (rm) return buildReminderIntent(rm[1], null);
 
   return UNKNOWN_INTENT;
 }

@@ -84,6 +84,31 @@ export function parseRelativeTime(
     return new Date(refMs + 15 * MINUTE_MS);
   }
 
+  // "בעוד דקה" (singular minute, no number) → 1 minute
+  if (/בעוד\s+דקה(?!\s*ו)/.test(normalized)) {
+    return new Date(refMs + MINUTE_MS);
+  }
+
+  // "בעוד דקה וחצי" → 1.5 minutes
+  if (/בעוד\s+דקה\s+וחצי/.test(normalized)) {
+    return new Date(refMs + 1.5 * MINUTE_MS);
+  }
+
+  // "בעוד רגע" / "בעוד שנייה" (colloquial "in a moment") → 1 minute
+  if (/בעוד\s+(?:רגע|שנייה)/.test(normalized)) {
+    return new Date(refMs + MINUTE_MS);
+  }
+
+  // "בעוד כמה דקות" / "בעוד מספר דקות" (vague "a few minutes") → 5 minutes
+  if (/בעוד\s+(?:כמה|מספר)\s+דקות/.test(normalized)) {
+    return new Date(refMs + 5 * MINUTE_MS);
+  }
+
+  // "בעוד זמן קצר" / "בקרוב" → 5 minutes
+  if (/בעוד\s+זמן\s+קצר|בקרוב/.test(normalized)) {
+    return new Date(refMs + 5 * MINUTE_MS);
+  }
+
   // Dual forms: שעתיים, יומיים, שבועיים
   if (/בעוד\s+שעתיים/.test(normalized)) return new Date(refMs + 2 * HOUR_MS);
   if (/בעוד\s+יומיים/.test(normalized)) return new Date(refMs + 2 * DAY_MS);
@@ -297,6 +322,11 @@ export function parseHebrewTime(
   // Check for relative time (בעוד / עוד / לעוד)
   if (/(?:בעוד|^עוד|לעוד)\s/.test(normalized)) {
     return parseRelativeTime(normalized, ref);
+  }
+
+  // "בקרוב" / "עוד קצת" as standalone
+  if (/בקרוב/.test(normalized)) {
+    return new Date(ref.getTime() + 5 * MINUTE_MS);
   }
 
   // Otherwise try absolute time
