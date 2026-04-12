@@ -1,4 +1,5 @@
 name: Tests
+# Runs unit tests on every PR, E2E on every PR (skip with [skip-e2e])
 
 on:
   pull_request:
