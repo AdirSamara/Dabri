@@ -31,48 +31,6 @@ function getInitial(address: string): string {
   return address.replace(/[^א-תa-zA-Z]/g, '')[0]?.toUpperCase() ?? '#';
 }
 
-// Speaker icon built from Views (matches MicButton style)
-function SpeakerIcon({ color, size = 14 }: { color: string; size?: number }): React.JSX.Element {
-  return (
-    <View style={{ width: size + 8, height: size, justifyContent: 'center' }}>
-      {/* Speaker body */}
-      <View style={{
-        width: size * 0.45,
-        height: size * 0.5,
-        backgroundColor: color,
-        borderRadius: 1,
-        position: 'absolute',
-        right: 0,
-      }} />
-      {/* Speaker cone */}
-      <View style={{
-        width: 0,
-        height: 0,
-        borderTopWidth: size * 0.5,
-        borderBottomWidth: size * 0.5,
-        borderRightWidth: size * 0.4,
-        borderTopColor: 'transparent',
-        borderBottomColor: 'transparent',
-        borderRightColor: color,
-        position: 'absolute',
-        right: size * 0.35,
-      }} />
-      {/* Sound waves */}
-      <View style={{
-        width: size * 0.3,
-        height: size * 0.6,
-        borderWidth: 1.5,
-        borderColor: color,
-        borderLeftWidth: 0,
-        borderRadius: size * 0.3,
-        position: 'absolute',
-        left: 0,
-        top: size * 0.2,
-      }} />
-    </View>
-  );
-}
-
 export function SmsViewerModal({
   visible,
   messages,
@@ -129,14 +87,20 @@ export function SmsViewerModal({
           fontWeight: '500',
         },
         // ── Compact list row ──
+        listRowContainer: {
+          flexDirection: 'row-reverse',
+          alignItems: 'center',
+          marginBottom: 6,
+          gap: 8,
+        },
         listRow: {
+          flex: 1,
           flexDirection: 'row-reverse',
           alignItems: 'center',
           backgroundColor: theme.surface,
           borderRadius: 12,
           paddingVertical: 10,
           paddingHorizontal: 12,
-          marginBottom: 6,
           gap: 10,
         },
         listAvatar: {
@@ -184,6 +148,9 @@ export function SmsViewerModal({
           backgroundColor: theme.primary + '20',
           alignItems: 'center',
           justifyContent: 'center',
+        },
+        readIconEmoji: {
+          fontSize: 16,
         },
         // ── Detail view ──
         detailCard: {
@@ -240,9 +207,6 @@ export function SmsViewerModal({
           borderRadius: 12,
           paddingVertical: 12,
           alignItems: 'center',
-          flexDirection: 'row-reverse',
-          justifyContent: 'center',
-          gap: 8,
           marginBottom: 8,
         },
         primaryButtonText: {
@@ -312,40 +276,38 @@ export function SmsViewerModal({
               </View>
 
               {messages.slice(0, 5).map((m, i) => (
-                <TouchableOpacity
-                  key={i}
-                  style={styles.listRow}
-                  onPress={() => setSelectedIndex(i)}
-                  activeOpacity={0.7}>
-                  <View style={styles.listAvatar}>
-                    <Text style={styles.listAvatarText}>
-                      {getInitial(m.address)}
-                    </Text>
-                  </View>
-                  <View style={styles.listContent}>
-                    <View style={styles.listTopRow}>
-                      <Text style={styles.listSender}>{m.address}</Text>
-                      {m.date > 0 && (
-                        <Text style={styles.listDate}>{formatDate(m.date)}</Text>
-                      )}
-                    </View>
-                    <Text
-                      style={styles.listPreview}
-                      numberOfLines={1}
-                      ellipsizeMode="tail">
-                      {m.body}
-                    </Text>
-                  </View>
+                <View key={i} style={styles.listRowContainer}>
                   <TouchableOpacity
                     style={styles.readIconButton}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      onReadAloud(`מ-${m.address}: ${m.body}`);
-                    }}
+                    onPress={() => onReadAloud(`מ-${m.address}: ${m.body}`)}
                     activeOpacity={0.7}>
-                    <SpeakerIcon color={theme.primary} size={14} />
+                    <Text style={styles.readIconEmoji}>🔊</Text>
                   </TouchableOpacity>
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.listRow}
+                    onPress={() => setSelectedIndex(i)}
+                    activeOpacity={0.7}>
+                    <View style={styles.listAvatar}>
+                      <Text style={styles.listAvatarText}>
+                        {getInitial(m.address)}
+                      </Text>
+                    </View>
+                    <View style={styles.listContent}>
+                      <View style={styles.listTopRow}>
+                        <Text style={styles.listSender}>{m.address}</Text>
+                        {m.date > 0 && (
+                          <Text style={styles.listDate}>{formatDate(m.date)}</Text>
+                        )}
+                      </View>
+                      <Text
+                        style={styles.listPreview}
+                        numberOfLines={1}
+                        ellipsizeMode="tail">
+                        {m.body}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
               ))}
 
               <TouchableOpacity
@@ -393,7 +355,6 @@ export function SmsViewerModal({
                 style={styles.primaryButton}
                 onPress={() => onReadAloud(`מ-${msg.address}: ${msg.body}`)}
                 activeOpacity={0.7}>
-                <SpeakerIcon color="#FFFFFF" size={16} />
                 <Text style={styles.primaryButtonText}>הקרא בקול</Text>
               </TouchableOpacity>
 
