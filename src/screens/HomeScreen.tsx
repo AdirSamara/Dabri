@@ -276,6 +276,7 @@ export function HomeScreen(): React.JSX.Element {
 
   const handleDisambiguate = useCallback(
     async (contact: Contact) => {
+      stopListening(); // Stop STT that auto-listen started
       const pending = useDabriStore.getState().pendingDisambiguation;
       if (!pending) { return; }
       useDabriStore.getState().setPendingDisambiguation(null);
@@ -287,7 +288,7 @@ export function HomeScreen(): React.JSX.Element {
       });
       speak(result.message);
     },
-    [updateConversation, speak],
+    [updateConversation, speak, stopListening],
   );
 
   const pendingDisambiguation = useDabriStore((s) => s.pendingDisambiguation);
