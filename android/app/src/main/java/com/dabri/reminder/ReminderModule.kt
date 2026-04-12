@@ -33,7 +33,7 @@ class ReminderModule(private val reactContext: ReactApplicationContext) :
     private val activityEventListener: ActivityEventListener =
         object : BaseActivityEventListener() {
             override fun onActivityResult(
-                activity: Activity?, requestCode: Int, resultCode: Int, data: Intent?
+                activity: Activity, requestCode: Int, resultCode: Int, data: Intent?
             ) {
                 // Not used for permission requests, but kept for potential future use
             }
@@ -105,7 +105,7 @@ class ReminderModule(private val reactContext: ReactApplicationContext) :
     fun requestNotificationPermission(promise: Promise) {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                val activity = currentActivity
+                val activity = reactContext.currentActivity
                 if (activity == null) {
                     promise.reject("NO_ACTIVITY", "No active activity to request permission")
                     return
