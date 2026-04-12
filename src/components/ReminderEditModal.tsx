@@ -9,6 +9,9 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import DateTimePicker, {
+  DateTimePickerEvent,
+} from '@react-native-community/datetimepicker';
 import { Reminder } from '../types';
 import { useTheme } from '../utils/theme';
 
@@ -16,7 +19,7 @@ interface ReminderEditModalProps {
   visible: boolean;
   reminder: Reminder | null;
   formatTime: (date: Date) => string;
-  onSave: (id: string, newText: string) => void;
+  onSave: (id: string, newText: string, newTriggerTime?: number) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
 }
@@ -31,11 +34,17 @@ export function ReminderEditModal({
 }: ReminderEditModalProps): React.JSX.Element {
   const theme = useTheme();
   const [editText, setEditText] = useState('');
+  const [editDate, setEditDate] = useState<Date>(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
-  // Sync text when reminder changes
+  // Sync state when reminder changes
   React.useEffect(() => {
     if (reminder) {
       setEditText(reminder.text);
+      setEditDate(new Date(reminder.triggerTime));
+      setShowDatePicker(false);
+      setShowTimePicker(false);
     }
   }, [reminder]);
 
@@ -94,21 +103,28 @@ export function ReminderEditModal({
           marginBottom: 20,
           minHeight: 56,
         },
-        timeRow: {
+        dateTimeRow: {
+          flexDirection: 'row',
+          gap: 10,
+          marginBottom: 28,
+        },
+        dateTimeButton: {
+          flex: 1,
           flexDirection: 'row-reverse',
           alignItems: 'center',
           backgroundColor: theme.surface,
+          borderWidth: 1,
+          borderColor: theme.border,
           borderRadius: 14,
-          paddingHorizontal: 16,
+          paddingHorizontal: 14,
           paddingVertical: 14,
-          marginBottom: 28,
-          gap: 10,
+          gap: 8,
         },
-        timeIcon: {
-          fontSize: 18,
-        },
-        timeText: {
+        dateTimeIcon: {
           fontSize: 16,
+        },
+        dateTimeText: {
+          fontSize: 15,
           color: theme.text,
           fontWeight: '500',
         },
@@ -119,6 +135,9 @@ export function ReminderEditModal({
           alignItems: 'center',
           backgroundColor: theme.primary,
           marginBottom: 10,
+        },
+        primaryButtonDisabled: {
+          opacity: 0.4,
         },
         primaryButtonText: {
           fontSize: 17,
@@ -157,8 +176,38 @@ export function ReminderEditModal({
 
   if (!reminder) return <></>;
 
-  const timeStr = formatTime(new Date(reminder.triggerTime));
-  const hasChanges = editText.trim() !== reminder.text;
+  const hasChanges =
+    editText.trim() !== reminder.text ||
+    editDate.getTime() !== reminder.triggerTime;
+
+  // Format date as dd/mm/yy
+  const dd = editDate.getDate().toString().padStart(2, '0');
+  const mo = (editDate.getMonth() + 1).toString().padStart(2, '0');
+  const yy = editDate.getFullYear().toString().slice(-2);
+  const dateStr = `${dd}/${mo}/${yy}`;
+
+  // Format time as HH:MM
+  const hh = editDate.getHours().toString().padStart(2, '0');
+  const mm = editDate.getMinutes().toString().padStart(2, '0');
+  const timeStr = `${hh}:${mm}`;
+
+  const handleDateChange = (_event: DateTimePickerEvent, selected?: Date) => {
+    setShowDatePicker(false);
+    if (selected) {
+      const updated = new Date(editDate);
+      updated.setFullYear(selected.getFullYear(), selected.getMonth(), selected.getDate());
+      setEditDate(updated);
+    }
+  };
+
+  const handleTimeChange = (_event: DateTimePickerEvent, selected?: Date) => {
+    setShowTimePicker(false);
+    if (selected) {
+      const updated = new Date(editDate);
+      updated.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
+      setEditDate(updated);
+    }
+  };
 
   return (
     <Modal
@@ -186,20 +235,56 @@ export function ReminderEditModal({
               autoFocus
             />
 
-            <Text style={styles.label}>זמן</Text>
-            <View style={styles.timeRow}>
-              <Text style={styles.timeIcon}>🕐</Text>
-              <Text style={styles.timeText}>{timeStr}</Text>
+            <Text style={styles.label}>תאריך ושעה</Text>
+            <View style={styles.dateTimeRow}>
+              <TouchableOpacity
+                style={styles.dateTimeButton}
+                onPress={() => setShowTimePicker(true)}
+                activeOpacity={0.7}>
+                <Text style={styles.dateTimeIcon}>🕐</Text>
+                <Text style={styles.dateTimeText}>{timeStr}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.dateTimeButton}
+                onPress={() => setShowDatePicker(true)}
+                activeOpacity={0.7}>
+                <Text style={styles.dateTimeIcon}>📅</Text>
+                <Text style={styles.dateTimeText}>{dateStr}</Text>
+              </TouchableOpacity>
             </View>
+
+            {showDatePicker && (
+              <DateTimePicker
+                value={editDate}
+                mode="date"
+                display="default"
+                minimumDate={new Date()}
+                onChange={handleDateChange}
+              />
+            )}
+
+            {showTimePicker && (
+              <DateTimePicker
+                value={editDate}
+                mode="time"
+                display="default"
+                is24Hour={true}
+                onChange={handleTimeChange}
+              />
+            )}
 
             <TouchableOpacity
               style={[
                 styles.primaryButton,
-                !hasChanges && { opacity: 0.4 },
+                !hasChanges && styles.primaryButtonDisabled,
               ]}
               onPress={() => {
                 if (editText.trim()) {
-                  onSave(reminder.id, editText.trim());
+                  const newTime = editDate.getTime() !== reminder.triggerTime
+                    ? editDate.getTime()
+                    : undefined;
+                  onSave(reminder.id, editText.trim(), newTime);
                 }
               }}
               disabled={!hasChanges || !editText.trim()}

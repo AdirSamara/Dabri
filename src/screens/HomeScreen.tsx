@@ -215,8 +215,22 @@ export function HomeScreen(): React.JSX.Element {
     setEditingReminder(reminder);
   }, []);
 
-  const handleSaveReminder = useCallback((id: string, newText: string) => {
-    useDabriStore.getState().updateReminder(id, { text: newText });
+  const handleSaveReminder = useCallback(async (id: string, newText: string, newTriggerTime?: number) => {
+    const updates: Partial<import('../types').Reminder> = { text: newText };
+    if (newTriggerTime) {
+      updates.triggerTime = newTriggerTime;
+      // Reschedule native alarm with new time
+      const ReminderBridge = require('../native/ReminderBridge').default;
+      if (ReminderBridge) {
+        try {
+          await ReminderBridge.cancelReminder(id);
+          await ReminderBridge.scheduleReminder(id, newText, newTriggerTime);
+        } catch (e) {
+          console.log('[HomeScreen] Failed to reschedule reminder:', e);
+        }
+      }
+    }
+    useDabriStore.getState().updateReminder(id, updates);
     setEditingReminder(null);
   }, []);
 
