@@ -31,6 +31,48 @@ function getInitial(address: string): string {
   return address.replace(/[^א-תa-zA-Z]/g, '')[0]?.toUpperCase() ?? '#';
 }
 
+// Speaker icon built from Views (matches MicButton style)
+function SpeakerIcon({ color, size = 14 }: { color: string; size?: number }): React.JSX.Element {
+  return (
+    <View style={{ width: size + 8, height: size, justifyContent: 'center' }}>
+      {/* Speaker body */}
+      <View style={{
+        width: size * 0.45,
+        height: size * 0.5,
+        backgroundColor: color,
+        borderRadius: 1,
+        position: 'absolute',
+        right: 0,
+      }} />
+      {/* Speaker cone */}
+      <View style={{
+        width: 0,
+        height: 0,
+        borderTopWidth: size * 0.5,
+        borderBottomWidth: size * 0.5,
+        borderRightWidth: size * 0.4,
+        borderTopColor: 'transparent',
+        borderBottomColor: 'transparent',
+        borderRightColor: color,
+        position: 'absolute',
+        right: size * 0.35,
+      }} />
+      {/* Sound waves */}
+      <View style={{
+        width: size * 0.3,
+        height: size * 0.6,
+        borderWidth: 1.5,
+        borderColor: color,
+        borderLeftWidth: 0,
+        borderRadius: size * 0.3,
+        position: 'absolute',
+        left: 0,
+        top: size * 0.2,
+      }} />
+    </View>
+  );
+}
+
 export function SmsViewerModal({
   visible,
   messages,
@@ -38,7 +80,6 @@ export function SmsViewerModal({
   onReadAloud,
 }: SmsViewerModalProps): React.JSX.Element {
   const theme = useTheme();
-  // null = list view, number = detail view index
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
   React.useEffect(() => {
@@ -59,9 +100,8 @@ export function SmsViewerModal({
           borderTopLeftRadius: 28,
           borderTopRightRadius: 28,
           paddingTop: 12,
-          paddingBottom: Platform.OS === 'ios' ? 40 : 28,
-          paddingHorizontal: 20,
-          maxHeight: '85%',
+          paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+          paddingHorizontal: 16,
         },
         handle: {
           width: 40,
@@ -69,36 +109,96 @@ export function SmsViewerModal({
           borderRadius: 2,
           backgroundColor: theme.border,
           alignSelf: 'center',
-          marginBottom: 16,
+          marginBottom: 12,
         },
         // ── Header ──
         headerRow: {
           flexDirection: 'row-reverse',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: 16,
+          marginBottom: 10,
         },
         title: {
-          fontSize: 20,
+          fontSize: 18,
           fontWeight: '700',
           color: theme.text,
         },
         counter: {
-          fontSize: 14,
+          fontSize: 13,
           color: theme.textSecondary,
           fontWeight: '500',
         },
-        // ── List view ──
+        // ── Compact list row ──
         listRow: {
           flexDirection: 'row-reverse',
           alignItems: 'center',
           backgroundColor: theme.surface,
-          borderRadius: 14,
-          padding: 12,
-          marginBottom: 8,
+          borderRadius: 12,
+          paddingVertical: 10,
+          paddingHorizontal: 12,
+          marginBottom: 6,
           gap: 10,
         },
         listAvatar: {
+          width: 34,
+          height: 34,
+          borderRadius: 17,
+          backgroundColor: theme.primary + '20',
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        listAvatarText: {
+          fontSize: 14,
+          color: theme.primary,
+          fontWeight: '700',
+        },
+        listContent: {
+          flex: 1,
+        },
+        listTopRow: {
+          flexDirection: 'row-reverse',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 2,
+        },
+        listSender: {
+          fontSize: 13,
+          fontWeight: '600',
+          color: theme.text,
+          writingDirection: 'rtl',
+        },
+        listDate: {
+          fontSize: 10,
+          color: theme.textTertiary,
+        },
+        listPreview: {
+          fontSize: 12,
+          color: theme.textSecondary,
+          writingDirection: 'rtl',
+          textAlign: 'right',
+        },
+        readIconButton: {
+          width: 34,
+          height: 34,
+          borderRadius: 17,
+          backgroundColor: theme.primary + '20',
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        // ── Detail view ──
+        detailCard: {
+          backgroundColor: theme.surface,
+          borderRadius: 16,
+          padding: 16,
+          marginBottom: 12,
+        },
+        detailSenderRow: {
+          flexDirection: 'row-reverse',
+          alignItems: 'center',
+          marginBottom: 12,
+          gap: 10,
+        },
+        detailAvatar: {
           width: 40,
           height: 40,
           borderRadius: 20,
@@ -106,128 +206,59 @@ export function SmsViewerModal({
           alignItems: 'center',
           justifyContent: 'center',
         },
-        listAvatarText: {
+        detailAvatarText: {
           fontSize: 16,
           color: theme.primary,
           fontWeight: '700',
         },
-        listContent: {
+        detailSenderInfo: {
           flex: 1,
         },
-        listSender: {
-          fontSize: 14,
-          fontWeight: '600',
-          color: theme.text,
-          writingDirection: 'rtl',
-          textAlign: 'right',
-          marginBottom: 2,
-        },
-        listPreview: {
-          fontSize: 13,
-          color: theme.textSecondary,
-          writingDirection: 'rtl',
-          textAlign: 'right',
-          numberOfLines: 1,
-        },
-        listDate: {
-          fontSize: 11,
-          color: theme.textTertiary,
-          marginTop: 2,
-          textAlign: 'right',
-        },
-        listActions: {
-          alignItems: 'center',
-          gap: 6,
-        },
-        expandButton: {
-          width: 36,
-          height: 36,
-          borderRadius: 18,
-          backgroundColor: theme.surfaceVariant,
-          alignItems: 'center',
-          justifyContent: 'center',
-        },
-        expandButtonText: {
-          fontSize: 14,
-          color: theme.textSecondary,
-        },
-        readSmallButton: {
-          width: 36,
-          height: 36,
-          borderRadius: 18,
-          backgroundColor: theme.primary + '20',
-          alignItems: 'center',
-          justifyContent: 'center',
-        },
-        readSmallButtonText: {
-          fontSize: 16,
-        },
-        // ── Detail view ──
-        detailCard: {
-          backgroundColor: theme.surface,
-          borderRadius: 16,
-          padding: 20,
-          marginBottom: 16,
-        },
-        detailSenderRow: {
-          flexDirection: 'row-reverse',
-          alignItems: 'center',
-          marginBottom: 14,
-          gap: 10,
-        },
-        detailAvatar: {
-          width: 44,
-          height: 44,
-          borderRadius: 22,
-          backgroundColor: theme.primary + '20',
-          alignItems: 'center',
-          justifyContent: 'center',
-        },
-        detailAvatarText: {
-          fontSize: 18,
-          color: theme.primary,
-          fontWeight: '700',
-        },
         detailSender: {
-          fontSize: 17,
+          fontSize: 16,
           fontWeight: '700',
           color: theme.text,
           writingDirection: 'rtl',
+          textAlign: 'right',
         },
         detailDate: {
           fontSize: 12,
           color: theme.textTertiary,
           writingDirection: 'rtl',
+          textAlign: 'right',
         },
         detailBody: {
-          fontSize: 16,
+          fontSize: 15,
           color: theme.text,
           writingDirection: 'rtl',
           textAlign: 'right',
-          lineHeight: 26,
+          lineHeight: 24,
         },
         // ── Buttons ──
         primaryButton: {
           backgroundColor: theme.primary,
-          borderRadius: 14,
-          paddingVertical: 14,
+          borderRadius: 12,
+          paddingVertical: 12,
           alignItems: 'center',
-          marginBottom: 10,
+          flexDirection: 'row-reverse',
+          justifyContent: 'center',
+          gap: 8,
+          marginBottom: 8,
         },
         primaryButtonText: {
-          fontSize: 17,
+          fontSize: 16,
           fontWeight: '700',
           color: '#FFFFFF',
         },
         navRow: {
           flexDirection: 'row-reverse',
-          gap: 10,
-          marginBottom: 10,
+          gap: 8,
+          marginBottom: 8,
         },
         navButton: {
           flex: 1,
-          paddingVertical: 12,
-          borderRadius: 14,
+          paddingVertical: 10,
+          borderRadius: 12,
           alignItems: 'center',
           backgroundColor: theme.surfaceVariant,
         },
@@ -235,18 +266,18 @@ export function SmsViewerModal({
           opacity: 0.3,
         },
         navButtonText: {
-          fontSize: 16,
+          fontSize: 14,
           fontWeight: '600',
           color: theme.text,
         },
         backButton: {
-          paddingVertical: 12,
-          borderRadius: 14,
+          paddingVertical: 10,
+          borderRadius: 12,
           alignItems: 'center',
           backgroundColor: theme.surfaceVariant,
         },
         backButtonText: {
-          fontSize: 16,
+          fontSize: 14,
           fontWeight: '600',
           color: theme.textSecondary,
         },
@@ -264,23 +295,11 @@ export function SmsViewerModal({
       visible={visible}
       transparent
       animationType="slide"
-      onRequestClose={() => {
-        if (isDetail) {
-          setSelectedIndex(null);
-        } else {
-          onClose();
-        }
-      }}>
+      onRequestClose={() => (isDetail ? setSelectedIndex(null) : onClose())}>
       <TouchableOpacity
         style={styles.backdrop}
         activeOpacity={1}
-        onPress={() => {
-          if (isDetail) {
-            setSelectedIndex(null);
-          } else {
-            onClose();
-          }
-        }}>
+        onPress={() => (isDetail ? setSelectedIndex(null) : onClose())}>
         <TouchableOpacity activeOpacity={1} style={styles.sheet} onPress={() => {}}>
           <View style={styles.handle} />
 
@@ -292,49 +311,42 @@ export function SmsViewerModal({
                 <Text style={styles.counter}>{messages.length} הודעות</Text>
               </View>
 
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                style={{ maxHeight: 400 }}>
-                {messages.slice(0, 5).map((m, i) => (
-                  <View key={i} style={styles.listRow}>
-                    <View style={styles.listAvatar}>
-                      <Text style={styles.listAvatarText}>
-                        {getInitial(m.address)}
-                      </Text>
-                    </View>
-                    <View style={styles.listContent}>
+              {messages.slice(0, 5).map((m, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={styles.listRow}
+                  onPress={() => setSelectedIndex(i)}
+                  activeOpacity={0.7}>
+                  <View style={styles.listAvatar}>
+                    <Text style={styles.listAvatarText}>
+                      {getInitial(m.address)}
+                    </Text>
+                  </View>
+                  <View style={styles.listContent}>
+                    <View style={styles.listTopRow}>
                       <Text style={styles.listSender}>{m.address}</Text>
-                      <Text
-                        style={styles.listPreview}
-                        numberOfLines={1}
-                        ellipsizeMode="tail">
-                        {m.body}
-                      </Text>
                       {m.date > 0 && (
-                        <Text style={styles.listDate}>
-                          {formatDate(m.date)}
-                        </Text>
+                        <Text style={styles.listDate}>{formatDate(m.date)}</Text>
                       )}
                     </View>
-                    <View style={styles.listActions}>
-                      <TouchableOpacity
-                        style={styles.readSmallButton}
-                        onPress={() =>
-                          onReadAloud(`מ-${m.address}: ${m.body}`)
-                        }
-                        activeOpacity={0.7}>
-                        <Text style={styles.readSmallButtonText}>🔊</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.expandButton}
-                        onPress={() => setSelectedIndex(i)}
-                        activeOpacity={0.7}>
-                        <Text style={styles.expandButtonText}>{'◁'}</Text>
-                      </TouchableOpacity>
-                    </View>
+                    <Text
+                      style={styles.listPreview}
+                      numberOfLines={1}
+                      ellipsizeMode="tail">
+                      {m.body}
+                    </Text>
                   </View>
-                ))}
-              </ScrollView>
+                  <TouchableOpacity
+                    style={styles.readIconButton}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      onReadAloud(`מ-${m.address}: ${m.body}`);
+                    }}
+                    activeOpacity={0.7}>
+                    <SpeakerIcon color={theme.primary} size={14} />
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              ))}
 
               <TouchableOpacity
                 style={styles.backButton}
@@ -356,8 +368,9 @@ export function SmsViewerModal({
               </View>
 
               <ScrollView
-                showsVerticalScrollIndicator={true}
-                style={{ maxHeight: 350 }}>
+                showsVerticalScrollIndicator
+                style={{ maxHeight: 300 }}
+                nestedScrollEnabled>
                 <View style={styles.detailCard}>
                   <View style={styles.detailSenderRow}>
                     <View style={styles.detailAvatar}>
@@ -365,12 +378,10 @@ export function SmsViewerModal({
                         {getInitial(msg.address)}
                       </Text>
                     </View>
-                    <View>
+                    <View style={styles.detailSenderInfo}>
                       <Text style={styles.detailSender}>{msg.address}</Text>
                       {msg.date > 0 && (
-                        <Text style={styles.detailDate}>
-                          {formatDate(msg.date)}
-                        </Text>
+                        <Text style={styles.detailDate}>{formatDate(msg.date)}</Text>
                       )}
                     </View>
                   </View>
@@ -380,10 +391,9 @@ export function SmsViewerModal({
 
               <TouchableOpacity
                 style={styles.primaryButton}
-                onPress={() =>
-                  onReadAloud(`מ-${msg.address}: ${msg.body}`)
-                }
+                onPress={() => onReadAloud(`מ-${msg.address}: ${msg.body}`)}
                 activeOpacity={0.7}>
+                <SpeakerIcon color="#FFFFFF" size={16} />
                 <Text style={styles.primaryButtonText}>הקרא בקול</Text>
               </TouchableOpacity>
 
@@ -393,9 +403,7 @@ export function SmsViewerModal({
                     styles.navButton,
                     selectedIndex <= 0 && styles.navButtonDisabled,
                   ]}
-                  onPress={() =>
-                    setSelectedIndex((i) => Math.max((i ?? 1) - 1, 0))
-                  }
+                  onPress={() => setSelectedIndex((i) => Math.max((i ?? 1) - 1, 0))}
                   disabled={selectedIndex <= 0}
                   activeOpacity={0.7}>
                   <Text style={styles.navButtonText}>{'הבא >'}</Text>
@@ -403,14 +411,9 @@ export function SmsViewerModal({
                 <TouchableOpacity
                   style={[
                     styles.navButton,
-                    selectedIndex >= messages.length - 1 &&
-                      styles.navButtonDisabled,
+                    selectedIndex >= messages.length - 1 && styles.navButtonDisabled,
                   ]}
-                  onPress={() =>
-                    setSelectedIndex((i) =>
-                      Math.min((i ?? 0) + 1, messages.length - 1),
-                    )
-                  }
+                  onPress={() => setSelectedIndex((i) => Math.min((i ?? 0) + 1, messages.length - 1))}
                   disabled={selectedIndex >= messages.length - 1}
                   activeOpacity={0.7}>
                   <Text style={styles.navButtonText}>{'< הקודם'}</Text>
