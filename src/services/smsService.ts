@@ -43,24 +43,37 @@ async function handleReadSms(intent: ParsedIntent): Promise<ActionResult> {
       return { success: true, message: 'אין הודעות חדשות' };
     }
 
-    // Pure Hebrew messages for TTS — no phone numbers or English
     const smsData = messages.map((m: any) => ({
       address: m.address,
       body: m.body,
       date: m.date ?? Date.now(),
     }));
 
+    // Build TTS: read messages aloud with ordinal labels (no phone numbers)
+    const ORDINALS = ['ראשונה', 'שנייה', 'שלישית', 'רביעית', 'חמישית'];
+    const MAX_TTS_BODY = 80;
+
     if (fetchCount === 1) {
+      const body = messages[0].body.length > MAX_TTS_BODY
+        ? messages[0].body.slice(0, MAX_TTS_BODY) + '...'
+        : messages[0].body;
       return {
         success: true,
-        message: 'ההודעה האחרונה שלך. לחץ לצפייה',
+        message: `ההודעה האחרונה: ${body}`,
         smsMessages: smsData,
       };
     }
 
+    const readings = messages.map((m: any, i: number) => {
+      const body = m.body.length > MAX_TTS_BODY
+        ? m.body.slice(0, MAX_TTS_BODY) + '...'
+        : m.body;
+      return `הודעה ${ORDINALS[i] ?? (i + 1)}: ${body}`;
+    });
+
     return {
       success: true,
-      message: `יש לך ${messages.length} הודעות. לחץ לצפייה`,
+      message: `יש לך ${messages.length} הודעות. ${readings.join('. ')}`,
       smsMessages: smsData,
     };
   } catch (e) {
