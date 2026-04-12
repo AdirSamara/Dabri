@@ -173,7 +173,6 @@ export function HomeScreen(): React.JSX.Element {
     (entry: ConversationEntry) => {
       if (entry.parsedIntent?.intent !== 'SET_REMINDER') return;
 
-      // Find the matching reminder by text
       const reminderText = entry.parsedIntent.reminderText;
       if (!reminderText || reminderText === '__LIST__') return;
 
@@ -202,6 +201,29 @@ export function HomeScreen(): React.JSX.Element {
       );
     },
     [reminders],
+  );
+
+  const handleDeleteReminder = useCallback((id: string) => {
+    cancelReminderById(id);
+  }, []);
+
+  const handleEditReminder = useCallback(
+    (reminder: import('../types').Reminder) => {
+      const timeDesc = formatHebrewTimeDescription(new Date(reminder.triggerTime));
+      Alert.alert(
+        'עריכת תזכורת',
+        `${reminder.text}\n${timeDesc}`,
+        [
+          { text: 'סגור', style: 'cancel' },
+          {
+            text: 'מחק תזכורת',
+            style: 'destructive',
+            onPress: () => cancelReminderById(reminder.id),
+          },
+        ],
+      );
+    },
+    [],
   );
 
   const handleOverlayClose = useCallback(() => {
@@ -267,7 +289,14 @@ export function HomeScreen(): React.JSX.Element {
                 )}
 
                 <View style={styles.conversationContainer}>
-                  <ConversationLog conversations={conversations} onEntryPress={handleReminderPress} />
+                  <ConversationLog
+                    conversations={conversations}
+                    onEntryPress={handleReminderPress}
+                    reminders={reminders}
+                    onDeleteReminder={handleDeleteReminder}
+                    onEditReminder={handleEditReminder}
+                    formatReminderTime={formatHebrewTimeDescription}
+                  />
                 </View>
               </>
           ) : (

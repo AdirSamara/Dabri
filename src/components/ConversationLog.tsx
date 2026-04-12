@@ -6,12 +6,17 @@ import {
   StyleSheet,
   TouchableOpacity,
 } from 'react-native';
-import { ConversationEntry, Intent } from '../types';
+import { ConversationEntry, Intent, Reminder } from '../types';
 import { useTheme } from '../utils/theme';
+import { ReminderListCard } from './ReminderListCard';
 
 interface ConversationLogProps {
   conversations: ConversationEntry[];
   onEntryPress?: (entry: ConversationEntry) => void;
+  reminders?: Reminder[];
+  onDeleteReminder?: (id: string) => void;
+  onEditReminder?: (reminder: Reminder) => void;
+  formatReminderTime?: (date: Date) => string;
 }
 
 const INTENT_LABELS: Record<Intent, string> = {
@@ -41,7 +46,16 @@ function getRelativeTime(timestamp: number): string {
   return 'היום';
 }
 
-function ConversationItem({ item, onPress }: { item: ConversationEntry; onPress?: () => void }): React.JSX.Element {
+interface ConversationItemProps {
+  item: ConversationEntry;
+  onPress?: () => void;
+  reminders?: Reminder[];
+  onDeleteReminder?: (id: string) => void;
+  onEditReminder?: (reminder: Reminder) => void;
+  formatReminderTime?: (date: Date) => string;
+}
+
+function ConversationItem({ item, onPress, reminders, onDeleteReminder, onEditReminder, formatReminderTime }: ConversationItemProps): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => StyleSheet.create({
     item: {
@@ -122,7 +136,13 @@ function ConversationItem({ item, onPress }: { item: ConversationEntry; onPress?
   const isReminderSuccess =
     item.parsedIntent?.intent === 'SET_REMINDER' &&
     item.status === 'success' &&
-    item.parsedIntent.reminderText !== '__LIST__';
+    item.parsedIntent.reminderText !== '__LIST__' &&
+    item.parsedIntent.reminderText !== null;
+
+  const isReminderList =
+    item.parsedIntent?.intent === 'SET_REMINDER' &&
+    item.status === 'success' &&
+    (item.parsedIntent.reminderText === '__LIST__' || item.parsedIntent.reminderText === null);
 
   const content = (
     <View style={styles.item}>
@@ -132,7 +152,7 @@ function ConversationItem({ item, onPress }: { item: ConversationEntry; onPress?
       {item.parsedIntent && item.parsedIntent.intent !== 'UNKNOWN' && (
         <View style={styles.intentRow}>
           <Text style={styles.intentLabel}>
-            {INTENT_LABELS[item.parsedIntent.intent]}
+            {isReminderList ? 'רשימת תזכורות' : INTENT_LABELS[item.parsedIntent.intent]}
           </Text>
           {item.parsedIntent.source === 'gemini' && (
             <View style={styles.geminiSource}>
@@ -142,12 +162,19 @@ function ConversationItem({ item, onPress }: { item: ConversationEntry; onPress?
         </View>
       )}
 
-      {item.result.length > 0 && (
+      {isReminderList && reminders && onDeleteReminder && onEditReminder && formatReminderTime ? (
+        <ReminderListCard
+          reminders={reminders}
+          onDelete={onDeleteReminder}
+          onEdit={onEditReminder}
+          formatTime={formatReminderTime}
+        />
+      ) : item.result.length > 0 ? (
         <View style={styles.resultRow}>
           <View style={[styles.statusDot, { backgroundColor: dotColor }]} />
           <Text style={styles.resultText}>{item.result}</Text>
         </View>
-      )}
+      ) : null}
 
       {isReminderSuccess && onPress && (
         <Text style={styles.tapHint}>{'לחץ לפרטים ‹'}</Text>
@@ -166,7 +193,7 @@ function ConversationItem({ item, onPress }: { item: ConversationEntry; onPress?
   return content;
 }
 
-export function ConversationLog({ conversations, onEntryPress }: ConversationLogProps): React.JSX.Element {
+export function ConversationLog({ conversations, onEntryPress, reminders, onDeleteReminder, onEditReminder, formatReminderTime }: ConversationLogProps): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => StyleSheet.create({
     emptyContainer: {
@@ -207,6 +234,10 @@ export function ConversationLog({ conversations, onEntryPress }: ConversationLog
         <ConversationItem
           item={item}
           onPress={onEntryPress ? () => onEntryPress(item) : undefined}
+          reminders={reminders}
+          onDeleteReminder={onDeleteReminder}
+          onEditReminder={onEditReminder}
+          formatReminderTime={formatReminderTime}
         />
       )}
       inverted
