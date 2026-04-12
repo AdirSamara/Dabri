@@ -7,5 +7,4 @@ name: Reminder Management
 - assertVisible: "הגדרות"
 - tapOn: "תזכורות"
 - assertVisible:
-    text: ".*תזכורות.*"
-    regex: true
+    text: "תזכורות"

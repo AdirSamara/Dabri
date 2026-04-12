@@ -8,5 +8,4 @@ name: Disambiguation Flow
 - pressKey: Enter
 # If multiple contacts match, disambiguation buttons appear
 - assertVisible:
-    text: ".*יוסי.*"
-    regex: true
+    text: "יוסי"

@@ -5,10 +5,6 @@ name: Silence Timeout Setting
 - tapOn:
     id: "settings-button"
 - tapOn:
-    text: ".*זמן שתיקה.*"
-    regex: true
-    optional: true
+    text: "זמן שתיקה"
 - assertVisible:
-    text: ".*שנ.*|.*שתיקה.*"
-    regex: true
-    optional: true
+    text: "שנ"

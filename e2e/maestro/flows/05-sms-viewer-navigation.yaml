@@ -8,6 +8,4 @@ name: SMS Viewer Navigation
 - pressKey: Enter
 # If SMS viewer opens, verify navigation
 - assertVisible:
-    text: ".*הודעות.*"
-    regex: true
-    optional: true
+    text: "הודעות"

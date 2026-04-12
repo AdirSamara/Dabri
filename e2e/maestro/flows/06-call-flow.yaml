@@ -7,5 +7,4 @@ name: Call Flow
 - inputText: "תתקשר לאבא"
 - pressKey: Enter
 - assertVisible:
-    text: ".*מתקשר.*|.*לא מצאתי.*|.*שיחה.*"
-    regex: true
+    text: "מתקשר"

@@ -9,6 +9,4 @@ name: Permission Handling
 - pressKey: Enter
 # Handle permission dialog if it appears
 - tapOn:
-    text: ".*Allow.*|.*אישור.*|.*ALLOW.*"
-    regex: true
-    optional: true
+    text: "Allow"

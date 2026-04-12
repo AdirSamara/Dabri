@@ -7,5 +7,4 @@ name: SMS Send Flow
 - inputText: "שלח הודעה לאמא שאני בדרך"
 - pressKey: Enter
 - assertVisible:
-    text: ".*נשלחה.*|.*הודעה.*"
-    regex: true
+    text: "נשלחה"

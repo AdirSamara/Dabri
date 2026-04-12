@@ -7,7 +7,5 @@ name: Settings Navigation
 - assertVisible: "הגדרות"
 # Navigate through settings
 - tapOn:
-    text: ".*זמן שתיקה.*|.*silence.*"
-    regex: true
-    optional: true
+    text: "זמן שתיקה"
 - back

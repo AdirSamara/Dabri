@@ -7,5 +7,4 @@ name: SMS Read Flow
 - inputText: "תקריא לי את ההודעות"
 - pressKey: Enter
 - assertVisible:
-    text: ".*הודעות.*|.*אין הודעות.*"
-    regex: true
+    text: "הודעות"

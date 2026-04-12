@@ -8,5 +8,4 @@ name: Error States
 - inputText: "מה מזג האוויר היום"
 - pressKey: Enter
 - assertVisible:
-    text: ".*לא הבנתי.*|.*UNKNOWN.*"
-    regex: true
+    text: "לא הבנתי"

@@ -8,10 +8,7 @@ name: Reminder Edit Flow
 - inputText: "תזכיר לי בעוד שעה לקנות חלב"
 - pressKey: Enter
 - assertVisible:
-    text: ".*אזכיר.*|.*תזכורת.*"
-    regex: true
+    text: "אזכיר"
 # Tap on the reminder card to open edit
 - tapOn:
-    text: ".*לפרטים.*"
-    regex: true
-    optional: true
+    text: "לפרטים"

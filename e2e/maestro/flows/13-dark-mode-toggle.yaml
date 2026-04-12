@@ -5,7 +5,5 @@ name: Dark Mode Toggle
 - tapOn:
     id: "settings-button"
 - tapOn:
-    text: ".*מצב כהה.*|.*dark.*"
-    regex: true
-    optional: true
+    text: "מצב כהה"
 - back

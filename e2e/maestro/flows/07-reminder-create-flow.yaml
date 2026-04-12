@@ -7,5 +7,4 @@ name: Reminder Create Flow
 - inputText: "תזכיר לי בעוד 5 דקות לצלצל"
 - pressKey: Enter
 - assertVisible:
-    text: ".*אזכיר.*|.*תזכורת.*|.*הרשאה.*"
-    regex: true
+    text: "אזכיר"
