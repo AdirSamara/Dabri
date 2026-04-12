@@ -27,6 +27,7 @@ export interface ConversationEntry {
   result: string;
   status: 'success' | 'error' | 'pending';
   timestamp: number;
+  smsMessages?: SmsMessage[];
 }
 
 export interface NotificationItem {
@@ -51,6 +52,12 @@ export interface Contact {
   recordID: string;
   displayName: string;
   phoneNumber: string;
+}
+
+export interface SmsMessage {
+  address: string;
+  body: string;
+  date: number;
 }
 
 export type VoiceStatus = 'idle' | 'listening' | 'processing' | 'speaking';

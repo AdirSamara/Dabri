@@ -1,8 +1,9 @@
-import { ParsedIntent, Intent, Contact } from '../types';
+import { ParsedIntent, Intent, Contact, SmsMessage } from '../types';
 
 export interface ActionResult {
   success: boolean;
   message: string;
+  smsMessages?: SmsMessage[];
   disambiguation?: {
     candidates: Contact[];
     intent: ParsedIntent;

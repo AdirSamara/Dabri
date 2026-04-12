@@ -43,6 +43,7 @@ async function handleReadSms(intent: ParsedIntent): Promise<ActionResult> {
       return { success: true, message: 'אין הודעות חדשות' };
     }
 
+    // Build short summary for TTS (truncated)
     const MAX_BODY_CHARS = 120;
     const MAX_TOTAL_CHARS = 400;
 
@@ -63,10 +64,15 @@ async function handleReadSms(intent: ParsedIntent): Promise<ActionResult> {
     const summary = parts.join('. ');
     const prefix = fetchCount === 1
       ? 'ההודעה האחרונה'
-      : `יש ${messages.length} הודעות`;
+      : `יש ${messages.length} הודעות. לחץ לצפייה מלאה`;
     return {
       success: true,
       message: `${prefix}. ${summary}`,
+      smsMessages: messages.map((m: any) => ({
+        address: m.address,
+        body: m.body,
+        date: m.date ?? Date.now(),
+      })),
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'שגיאה לא ידועה';

@@ -18,8 +18,9 @@ import { MicButton } from '../components/MicButton';
 import { VoiceOverlay } from '../components/VoiceOverlay';
 import { ConversationLog } from '../components/ConversationLog';
 import { ReminderEditModal } from '../components/ReminderEditModal';
+import { SmsViewerModal } from '../components/SmsViewerModal';
 import { generateId, normalizeHebrew } from '../utils/hebrewUtils';
-import { ConversationEntry, Reminder, Contact } from '../types';
+import { ConversationEntry, Reminder, Contact, SmsMessage } from '../types';
 import AssistantBridge from '../native/AssistantBridge';
 import { useTheme } from '../utils/theme';
 
@@ -217,6 +218,7 @@ export function HomeScreen(): React.JSX.Element {
         updateConversation(id, {
           result: actionResult.message,
           status: actionResult.success ? 'success' : 'error',
+          ...(actionResult.smsMessages ? { smsMessages: actionResult.smsMessages } : {}),
         });
         speak(actionResult.message);
       },
@@ -239,9 +241,23 @@ export function HomeScreen(): React.JSX.Element {
   }, [voiceStatus, startListening, stopListening, stopSpeaking]);
 
   const reminders = useDabriStore((s) => s.reminders);
+  const [smsViewerMessages, setSmsViewerMessages] = useState<SmsMessage[]>([]);
+  const [smsViewerVisible, setSmsViewerVisible] = useState(false);
 
-  const handleReminderPress = useCallback(
+  const handleEntryPress = useCallback(
     (entry: ConversationEntry) => {
+      // SMS viewer
+      if (
+        entry.parsedIntent?.intent === 'READ_SMS' &&
+        entry.smsMessages &&
+        entry.smsMessages.length > 0
+      ) {
+        setSmsViewerMessages(entry.smsMessages);
+        setSmsViewerVisible(true);
+        return;
+      }
+
+      // Reminder details
       if (entry.parsedIntent?.intent !== 'SET_REMINDER') return;
 
       const reminderText = entry.parsedIntent.reminderText;
@@ -396,7 +412,7 @@ export function HomeScreen(): React.JSX.Element {
                 <View style={styles.conversationContainer}>
                   <ConversationLog
                     conversations={conversations}
-                    onEntryPress={handleReminderPress}
+                    onEntryPress={handleEntryPress}
                     reminders={reminders}
                     onDeleteReminder={handleDeleteReminder}
                     onEditReminder={handleEditReminder}
@@ -451,6 +467,13 @@ export function HomeScreen(): React.JSX.Element {
           onSave={handleSaveReminder}
           onDelete={handleDeleteReminder}
           onClose={() => setEditingReminder(null)}
+        />
+
+        <SmsViewerModal
+          visible={smsViewerVisible}
+          messages={smsViewerMessages}
+          onClose={() => setSmsViewerVisible(false)}
+          onReadAloud={(text) => speak(text)}
         />
       </SafeAreaView>
   );

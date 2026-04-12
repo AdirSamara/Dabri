@@ -162,6 +162,12 @@ function ConversationItem({ item, onPress, reminders, onDeleteReminder, onEditRe
     item.parsedIntent.reminderText !== '__LIST__' &&
     item.parsedIntent.reminderText !== null;
 
+  const isSmsReadable =
+    item.parsedIntent?.intent === 'READ_SMS' &&
+    item.status === 'success' &&
+    item.smsMessages &&
+    item.smsMessages.length > 0;
+
   const isReminderList =
     item.parsedIntent?.intent === 'SET_REMINDER' &&
     item.status === 'success' &&
@@ -203,6 +209,10 @@ function ConversationItem({ item, onPress, reminders, onDeleteReminder, onEditRe
         <Text style={styles.tapHint}>{'לחץ לפרטים ‹'}</Text>
       )}
 
+      {isSmsReadable && onPress && (
+        <Text style={styles.tapHint}>{'לחץ לצפייה מלאה ‹'}</Text>
+      )}
+
       {disambiguationCandidates && disambiguationCandidates.length > 0 && onDisambiguate && (
         <View style={styles.disambiguationContainer}>
           {disambiguationCandidates.map((c, i) => (
@@ -222,7 +232,7 @@ function ConversationItem({ item, onPress, reminders, onDeleteReminder, onEditRe
     </View>
   );
 
-  if (isReminderSuccess && onPress) {
+  if ((isReminderSuccess || isSmsReadable) && onPress) {
     return (
       <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
         {content}
