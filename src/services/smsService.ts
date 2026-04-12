@@ -43,35 +43,25 @@ async function handleReadSms(intent: ParsedIntent): Promise<ActionResult> {
       return { success: true, message: 'אין הודעות חדשות' };
     }
 
-    // Short summary for chat + TTS — keep it brief, user taps for full view
-    const MAX_PREVIEW = 30;
+    // Pure Hebrew messages for TTS — no phone numbers or English
+    const smsData = messages.map((m: any) => ({
+      address: m.address,
+      body: m.body,
+      date: m.date ?? Date.now(),
+    }));
+
     if (fetchCount === 1) {
-      const m = messages[0];
-      const preview = m.body.length > MAX_PREVIEW
-        ? m.body.slice(0, MAX_PREVIEW) + '...'
-        : m.body;
       return {
         success: true,
-        message: `מ-${m.address}: ${preview}`,
-        smsMessages: messages.map((msg: any) => ({
-          address: msg.address,
-          body: msg.body,
-          date: msg.date ?? Date.now(),
-        })),
+        message: 'ההודעה האחרונה שלך. לחץ לצפייה',
+        smsMessages: smsData,
       };
     }
 
-    // Multiple messages — short summary with sender names only
-    const senders = messages.slice(0, 3).map((m: any) => m.address).join(', ');
-    const extra = messages.length > 3 ? ` ועוד ${messages.length - 3}` : '';
     return {
       success: true,
-      message: `${messages.length} הודעות מ-${senders}${extra}. לחץ לצפייה`,
-      smsMessages: messages.map((m: any) => ({
-        address: m.address,
-        body: m.body,
-        date: m.date ?? Date.now(),
-      })),
+      message: `יש לך ${messages.length} הודעות. לחץ לצפייה`,
+      smsMessages: smsData,
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'שגיאה לא ידועה';
