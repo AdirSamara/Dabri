@@ -6,6 +6,7 @@ import {
   ConversationEntry,
   NotificationItem,
   Reminder,
+  PendingDisambiguation,
 } from '../types';
 import { MAX_CONVERSATION_LOG, MAX_NOTIFICATIONS_BUFFER } from '../utils/constants';
 
@@ -22,6 +23,9 @@ interface DabriState {
 
   // Reminders (persisted)
   reminders: Reminder[];
+
+  // Disambiguation (session-only)
+  pendingDisambiguation: PendingDisambiguation | null;
 
   // Settings (persisted)
   geminiApiKey: string;
@@ -41,6 +45,7 @@ interface DabriState {
   updateReminder: (id: string, updates: Partial<Reminder>) => void;
   completeReminder: (id: string) => void;
   snoozeReminder: (id: string, minutes: number) => void;
+  setPendingDisambiguation: (data: PendingDisambiguation | null) => void;
   setGeminiApiKey: (key: string) => void;
   setTtsSpeed: (speed: number) => void;
   setDarkMode: (dark: boolean) => void;
@@ -57,6 +62,7 @@ export const useDabriStore = create<DabriState>()(
       conversations: [],
       recentNotifications: [],
       reminders: [],
+      pendingDisambiguation: null,
       geminiApiKey: '',
       ttsSpeed: 0.6,
       isDarkMode: false,
@@ -123,6 +129,8 @@ export const useDabriStore = create<DabriState>()(
             ),
           };
         }),
+
+      setPendingDisambiguation: (data) => set({ pendingDisambiguation: data }),
 
       setGeminiApiKey: (key) => set({ geminiApiKey: key }),
 

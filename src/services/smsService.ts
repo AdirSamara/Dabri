@@ -86,10 +86,19 @@ async function handleSendSms(intent: ParsedIntent): Promise<ActionResult> {
     return { success: false, message: 'לא צוין תוכן ההודעה' };
   }
 
-  const { contact, correctedMessage } = await resolveContactWithAlignment(
+  const { contact, correctedMessage, allCandidates } = await resolveContactWithAlignment(
     intent.contact,
     intent.message,
   );
+
+  if (allCandidates.length > 1) {
+    return {
+      success: false,
+      message: allCandidates.map(c => c.displayName).join(', '),
+      disambiguation: { candidates: allCandidates, intent, correctedMessage },
+    };
+  }
+
   if (!contact) {
     return { success: false, message: `לא מצאתי איש קשר בשם ${intent.contact}` };
   }

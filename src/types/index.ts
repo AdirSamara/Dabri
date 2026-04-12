@@ -54,3 +54,10 @@ export interface Contact {
 }
 
 export type VoiceStatus = 'idle' | 'listening' | 'processing' | 'speaking';
+
+export interface PendingDisambiguation {
+  conversationId: string;
+  intent: ParsedIntent;
+  candidates: Contact[];
+  correctedMessage: string;
+}

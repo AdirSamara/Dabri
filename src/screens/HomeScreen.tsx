@@ -18,10 +18,41 @@ import { MicButton } from '../components/MicButton';
 import { VoiceOverlay } from '../components/VoiceOverlay';
 import { ConversationLog } from '../components/ConversationLog';
 import { ReminderEditModal } from '../components/ReminderEditModal';
-import { generateId } from '../utils/hebrewUtils';
-import { ConversationEntry, Reminder } from '../types';
+import { generateId, normalizeHebrew } from '../utils/hebrewUtils';
+import { ConversationEntry, Reminder, Contact } from '../types';
 import AssistantBridge from '../native/AssistantBridge';
 import { useTheme } from '../utils/theme';
+
+// ── Disambiguation helpers ──────────────────────────────────────────
+const OPTION_LABELS = ['אחת', 'שתיים', 'שלוש'];
+
+const NUMBER_WORDS: Record<string, number> = {
+  'אחת': 0, 'אחד': 0, '1': 0, 'ראשון': 0, 'ראשונה': 0,
+  'שתיים': 1, 'שניים': 1, 'שני': 1, '2': 1, 'שנייה': 1,
+  'שלוש': 2, 'שלושה': 2, '3': 2, 'שלישי': 2, 'שלישית': 2,
+};
+
+function matchDisambiguationChoice(text: string, candidates: Contact[]): Contact | null {
+  const normalized = normalizeHebrew(text);
+  // Check number words
+  const idx = NUMBER_WORDS[normalized];
+  if (idx !== undefined && idx < candidates.length) {
+    return candidates[idx];
+  }
+  // Try matching by name
+  for (const c of candidates) {
+    if (normalizeHebrew(c.displayName).includes(normalized) && normalized.length >= 2) {
+      return c;
+    }
+  }
+  return null;
+}
+
+function buildDisambiguationMessage(candidates: Contact[]): string {
+  const count = candidates.length === 2 ? 'שני' : 'שלושה';
+  const options = candidates.map((c, i) => `${OPTION_LABELS[i]}: ${c.displayName}`).join('. ');
+  return `מצאתי ${count} אנשי קשר. ${options}. בחר אפשרות.`;
+}
 
 export function HomeScreen(): React.JSX.Element {
   const theme = useTheme();
@@ -120,6 +151,26 @@ export function HomeScreen(): React.JSX.Element {
           return;
         }
 
+        // ── Handle pending disambiguation ──
+        const pending = useDabriStore.getState().pendingDisambiguation;
+        if (pending) {
+          const selected = matchDisambiguationChoice(text, pending.candidates);
+          if (selected) {
+            useDabriStore.getState().setPendingDisambiguation(null);
+            const resolvedIntent = { ...pending.intent, contact: selected.displayName };
+            const result = await dispatchAction(resolvedIntent);
+            updateConversation(pending.conversationId, {
+              result: result.message,
+              status: result.success ? 'success' : 'error',
+            });
+            speak(result.message);
+            return;
+          }
+          // Didn't match a choice — clear disambiguation and process as new command
+          useDabriStore.getState().setPendingDisambiguation(null);
+        }
+
+        // ── Normal flow ──
         const id = generateId();
 
         const pendingEntry: ConversationEntry = {
@@ -144,6 +195,22 @@ export function HomeScreen(): React.JSX.Element {
         }
 
         const actionResult = await dispatchAction(parsedIntent);
+
+        // ── Disambiguation needed? ──
+        if (actionResult.disambiguation) {
+          const { candidates, intent: originalIntent, correctedMessage } = actionResult.disambiguation;
+          useDabriStore.getState().setPendingDisambiguation({
+            conversationId: id,
+            intent: originalIntent,
+            candidates,
+            correctedMessage,
+          });
+          const ttsMsg = buildDisambiguationMessage(candidates);
+          updateConversation(id, { result: ttsMsg, status: 'pending' });
+          speak(ttsMsg);
+          return;
+        }
+
         updateConversation(id, {
           result: actionResult.message,
           status: actionResult.success ? 'success' : 'error',
@@ -203,6 +270,24 @@ export function HomeScreen(): React.JSX.Element {
     },
     [reminders],
   );
+
+  const handleDisambiguate = useCallback(
+    async (contact: Contact) => {
+      const pending = useDabriStore.getState().pendingDisambiguation;
+      if (!pending) { return; }
+      useDabriStore.getState().setPendingDisambiguation(null);
+      const resolvedIntent = { ...pending.intent, contact: contact.displayName };
+      const result = await dispatchAction(resolvedIntent);
+      updateConversation(pending.conversationId, {
+        result: result.message,
+        status: result.success ? 'success' : 'error',
+      });
+      speak(result.message);
+    },
+    [updateConversation, speak],
+  );
+
+  const pendingDisambiguation = useDabriStore((s) => s.pendingDisambiguation);
 
   const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
 
@@ -304,6 +389,8 @@ export function HomeScreen(): React.JSX.Element {
                     onDeleteReminder={handleDeleteReminder}
                     onEditReminder={handleEditReminder}
                     formatReminderTime={formatHebrewTimeDescription}
+                    pendingDisambiguation={pendingDisambiguation}
+                    onDisambiguate={handleDisambiguate}
                   />
                 </View>
               </>

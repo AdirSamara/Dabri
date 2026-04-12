@@ -61,9 +61,10 @@ export async function loadContacts(): Promise<Contact[]> {
 const enum MatchTier {
   NONE = 0,
   FUZZY = 1,
-  PREFIX = 2,
-  ALIAS = 3,
-  EXACT = 4,
+  WORD = 2,     // a word within displayName matches the search term
+  PREFIX = 3,
+  ALIAS = 4,
+  EXACT = 5,
 }
 
 interface ScoredMatch {
@@ -71,10 +72,50 @@ interface ScoredMatch {
   tier: MatchTier;
 }
 
+function fuzzyThreshold(len: number): number {
+  return len <= 3 ? 1 : len <= 7 ? 2 : 3;
+}
+
+/** Score a single contact against a search term. */
+function scoreOneContact(normalizedName: string, c: Contact): MatchTier {
+  const dn = normalizeHebrew(c.displayName);
+
+  // Exact
+  if (dn === normalizedName) { return MatchTier.EXACT; }
+
+  // Prefix — displayName starts with search term
+  if (dn.startsWith(normalizedName)) { return MatchTier.PREFIX; }
+
+  // Word — any word in displayName matches the search term
+  const words = dn.split(/\s+/);
+  for (const w of words) {
+    if (w === normalizedName) { return MatchTier.WORD; }
+  }
+  // Word prefix — any word starts with search term
+  for (const w of words) {
+    if (w.startsWith(normalizedName) && normalizedName.length >= 2) { return MatchTier.WORD; }
+  }
+  // Suffix — displayName ends with search term (multi-word last names like "אבו חסן")
+  if (dn.endsWith(normalizedName) && normalizedName.length >= 2) { return MatchTier.WORD; }
+  // Word fuzzy — any word fuzzy-matches the search term
+  const wThreshold = fuzzyThreshold(normalizedName.length);
+  for (const w of words) {
+    if (levenshteinDistance(normalizedName, w) <= wThreshold) { return MatchTier.WORD; }
+  }
+
+  // Full-name fuzzy
+  if (levenshteinDistance(normalizedName, dn) <= fuzzyThreshold(normalizedName.length)) {
+    return MatchTier.FUZZY;
+  }
+
+  return MatchTier.NONE;
+}
+
+/** Score the best single match (used by alignment expansion). */
 function scoreContactMatch(name: string): ScoredMatch {
   const normalizedName = normalizeHebrew(name);
 
-  // Alias
+  // Alias — check user-defined aliases first
   const aliases = useDabriStore.getState().contactAliases;
   const aliasTarget = aliases[normalizedName];
   if (aliasTarget) {
@@ -86,41 +127,56 @@ function scoreContactMatch(name: string): ScoredMatch {
     }
   }
 
-  // Exact
-  const exact = cachedContacts.find(
-    (c) => normalizeHebrew(c.displayName) === normalizedName,
-  );
-  if (exact) {
-    return { contact: exact, tier: MatchTier.EXACT };
-  }
+  // Score all contacts based on tiers and return the best one
+  let bestContact: Contact | null = null;
+  let bestTier = MatchTier.NONE;
 
-  // Prefix
-  const prefix = cachedContacts.find((c) =>
-    normalizeHebrew(c.displayName).startsWith(normalizedName),
-  );
-  if (prefix) {
-    return { contact: prefix, tier: MatchTier.PREFIX };
-  }
-
-  // Fuzzy — threshold scales with name length to avoid false matches on short names
-  const maxDistance = normalizedName.length <= 3 ? 1 : normalizedName.length <= 7 ? 2 : 3;
-  let bestMatch: Contact | null = null;
-  let bestDistance = Infinity;
-  for (const contact of cachedContacts) {
-    const distance = levenshteinDistance(
-      normalizedName,
-      normalizeHebrew(contact.displayName),
-    );
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      bestMatch = contact;
+  for (const c of cachedContacts) {
+    const tier = scoreOneContact(normalizedName, c);
+    if (tier > bestTier) {
+      bestTier = tier;
+      bestContact = c;
     }
   }
-  if (bestDistance <= maxDistance && bestMatch) {
-    return { contact: bestMatch, tier: MatchTier.FUZZY };
+
+  return { contact: bestContact, tier: bestTier };
+}
+
+/** Find ALL contacts matching at the best tier (for disambiguation). Max 3. */
+function scoreAllContactMatches(name: string): { contacts: Contact[]; tier: MatchTier } {
+  const normalizedName = normalizeHebrew(name);
+
+  // Alias — always single result
+  const aliases = useDabriStore.getState().contactAliases;
+  const aliasTarget = aliases[normalizedName];
+  if (aliasTarget) {
+    const found = cachedContacts.find(
+      (c) => normalizeHebrew(c.displayName) === normalizeHebrew(aliasTarget),
+    );
+    if (found) {
+      return { contacts: [found], tier: MatchTier.ALIAS };
+    }
   }
 
-  return { contact: null, tier: MatchTier.NONE };
+  // Score every contact, group by tier
+  const byTier = new Map<MatchTier, Contact[]>();
+  for (const c of cachedContacts) {
+    const tier = scoreOneContact(normalizedName, c);
+    if (tier > MatchTier.NONE) {
+      if (!byTier.has(tier)) { byTier.set(tier, []); }
+      byTier.get(tier)!.push(c);
+    }
+  }
+
+  // Return matches at the highest tier, capped at 3
+  for (const tier of [MatchTier.EXACT, MatchTier.PREFIX, MatchTier.WORD, MatchTier.FUZZY]) {
+    const matches = byTier.get(tier);
+    if (matches && matches.length > 0) {
+      return { contacts: matches.slice(0, 3), tier };
+    }
+  }
+
+  return { contacts: [], tier: MatchTier.NONE };
 }
 
 export async function resolveContact(name: string): Promise<Contact | null> {
@@ -130,38 +186,36 @@ export async function resolveContact(name: string): Promise<Contact | null> {
   return scoreContactMatch(name).contact;
 }
 
+/** Resolve contact with disambiguation support (for calls — no message splitting). */
+export async function resolveContactCandidates(name: string): Promise<Contact[]> {
+  if (!cacheLoaded) {
+    await loadContacts();
+  }
+  return scoreAllContactMatches(name).contacts;
+}
+
 // ── Contact-aware boundary alignment ──────────────────────────────────
-// The regex parser uses non-greedy matching for the contact name, so it
-// may capture only the first word of a multi-word name (e.g. "גיל" instead
-// of "גיל צרפתי"). This function tries progressively longer names against
-// the contact list to find the best match, then returns the corrected
-// message with the ש conjunction stripped if needed.
 
 /** Words that start with ש but are NOT the conjunction ש. */
 const SHIN_NON_CONJUNCTION = /^ש[בלמנ]|^שב[תע]|^של[וו]ם|^שי/;
 
 function stripLeadingShinConjunction(text: string): string {
-  if (!text.startsWith('ש')) {
-    return text;
-  }
-  // Keep words where ש is integral (שבת, שלום, שמח, שני, שבוע, שנה, etc.)
-  if (SHIN_NON_CONJUNCTION.test(text)) {
-    return text;
-  }
-  // Strip the ש conjunction (שאני → אני, שמחר → מחר, שהוא → הוא)
+  if (!text.startsWith('ש')) { return text; }
+  if (SHIN_NON_CONJUNCTION.test(text)) { return text; }
   return text.slice(1);
 }
 
 export async function resolveContactWithAlignment(
   rawContact: string,
   rawMessage: string,
-): Promise<{ contact: Contact | null; correctedMessage: string }> {
+): Promise<{ contact: Contact | null; correctedMessage: string; allCandidates: Contact[] }> {
   if (!cacheLoaded) {
     await loadContacts();
   }
 
   const messageWords = rawMessage.split(/\s+/).filter(Boolean);
   let best = scoreContactMatch(rawContact);
+  let bestAll = scoreAllContactMatches(rawContact);
   let wordsConsumed = 0;
 
   // Try expanding contact name by adding words from the message (max 4)
@@ -171,10 +225,11 @@ export async function resolveContactWithAlignment(
     const scored = scoreContactMatch(candidate);
 
     if (scored.tier === MatchTier.NONE) {
-      break; // No point extending further
+      break;
     }
     if (scored.tier > best.tier || (scored.tier === best.tier && scored.tier >= MatchTier.FUZZY)) {
       best = scored;
+      bestAll = scoreAllContactMatches(candidate);
       wordsConsumed = i;
     }
   }
@@ -183,7 +238,11 @@ export async function resolveContactWithAlignment(
   const remaining = remainingWords.join(' ');
   const correctedMessage = stripLeadingShinConjunction(remaining);
 
-  return { contact: best.contact, correctedMessage };
+  return {
+    contact: best.contact,
+    correctedMessage,
+    allCandidates: bestAll.contacts,
+  };
 }
 
 export function invalidateContactCache(): void {

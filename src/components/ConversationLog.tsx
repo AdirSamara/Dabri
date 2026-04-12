@@ -6,7 +6,7 @@ import {
   StyleSheet,
   TouchableOpacity,
 } from 'react-native';
-import { ConversationEntry, Intent, Reminder } from '../types';
+import { ConversationEntry, Intent, Reminder, PendingDisambiguation, Contact } from '../types';
 import { useTheme } from '../utils/theme';
 import { ReminderListCard } from './ReminderListCard';
 
@@ -17,7 +17,11 @@ interface ConversationLogProps {
   onDeleteReminder?: (id: string) => void;
   onEditReminder?: (reminder: Reminder) => void;
   formatReminderTime?: (date: Date) => string;
+  pendingDisambiguation?: PendingDisambiguation | null;
+  onDisambiguate?: (contact: Contact) => void;
 }
+
+const OPTION_LABELS = ['אחת', 'שתיים', 'שלוש'];
 
 const INTENT_LABELS: Record<Intent, string> = {
   SEND_SMS: 'שליחת הודעה',
@@ -53,9 +57,11 @@ interface ConversationItemProps {
   onDeleteReminder?: (id: string) => void;
   onEditReminder?: (reminder: Reminder) => void;
   formatReminderTime?: (date: Date) => string;
+  disambiguationCandidates?: Contact[];
+  onDisambiguate?: (contact: Contact) => void;
 }
 
-function ConversationItem({ item, onPress, reminders, onDeleteReminder, onEditReminder, formatReminderTime }: ConversationItemProps): React.JSX.Element {
+function ConversationItem({ item, onPress, reminders, onDeleteReminder, onEditReminder, formatReminderTime, disambiguationCandidates, onDisambiguate }: ConversationItemProps): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => StyleSheet.create({
     item: {
@@ -130,6 +136,23 @@ function ConversationItem({ item, onPress, reminders, onDeleteReminder, onEditRe
       textAlign: 'right',
       marginTop: 6,
     },
+    disambiguationContainer: {
+      marginTop: 10,
+      gap: 8,
+    },
+    disambiguationButton: {
+      backgroundColor: '#2196F3',
+      borderRadius: 12,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      alignItems: 'center',
+    },
+    disambiguationButtonText: {
+      color: '#fff',
+      fontSize: 15,
+      fontWeight: '600',
+      writingDirection: 'rtl',
+    },
   }), [theme]);
 
   const dotColor = STATUS_COLORS[item.status];
@@ -179,6 +202,23 @@ function ConversationItem({ item, onPress, reminders, onDeleteReminder, onEditRe
       {isReminderSuccess && onPress && (
         <Text style={styles.tapHint}>{'לחץ לפרטים ‹'}</Text>
       )}
+
+      {disambiguationCandidates && disambiguationCandidates.length > 0 && onDisambiguate && (
+        <View style={styles.disambiguationContainer}>
+          {disambiguationCandidates.map((c, i) => (
+            <TouchableOpacity
+              key={c.recordID}
+              style={styles.disambiguationButton}
+              onPress={() => onDisambiguate(c)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.disambiguationButtonText}>
+                {OPTION_LABELS[i]}: {c.displayName}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
     </View>
   );
 
@@ -193,7 +233,7 @@ function ConversationItem({ item, onPress, reminders, onDeleteReminder, onEditRe
   return content;
 }
 
-export function ConversationLog({ conversations, onEntryPress, reminders, onDeleteReminder, onEditReminder, formatReminderTime }: ConversationLogProps): React.JSX.Element {
+export function ConversationLog({ conversations, onEntryPress, reminders, onDeleteReminder, onEditReminder, formatReminderTime, pendingDisambiguation, onDisambiguate }: ConversationLogProps): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => StyleSheet.create({
     emptyContainer: {
@@ -238,6 +278,12 @@ export function ConversationLog({ conversations, onEntryPress, reminders, onDele
           onDeleteReminder={onDeleteReminder}
           onEditReminder={onEditReminder}
           formatReminderTime={formatReminderTime}
+          disambiguationCandidates={
+            pendingDisambiguation?.conversationId === item.id
+              ? pendingDisambiguation.candidates
+              : undefined
+          }
+          onDisambiguate={onDisambiguate}
         />
       )}
       inverted

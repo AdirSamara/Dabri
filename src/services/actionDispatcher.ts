@@ -1,8 +1,13 @@
-import { ParsedIntent, Intent } from '../types';
+import { ParsedIntent, Intent, Contact } from '../types';
 
 export interface ActionResult {
   success: boolean;
   message: string;
+  disambiguation?: {
+    candidates: Contact[];
+    intent: ParsedIntent;
+    correctedMessage: string;
+  };
 }
 
 type ActionHandler = (intent: ParsedIntent) => Promise<ActionResult>;
