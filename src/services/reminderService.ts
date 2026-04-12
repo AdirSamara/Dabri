@@ -44,8 +44,13 @@ async function ensurePermissions(): Promise<ActionResult | null> {
 }
 
 async function handleSetReminder(intent: ParsedIntent): Promise<ActionResult> {
-  // Handle list-reminders sub-intent
-  if (intent.reminderText === '__LIST__' || (!intent.reminderText && !intent.reminderTime)) {
+  // Handle list-reminders sub-intent (no permissions needed — reads from Zustand)
+  const isListQuery =
+    intent.reminderText === '__LIST__' ||
+    (!intent.reminderText && !intent.reminderTime) ||
+    /^(?:תזכורות|רשימת תזכורות|הצג תזכורות|הראה תזכורות)$/.test(intent.reminderText?.trim() ?? '');
+
+  if (isListQuery) {
     return handleListReminders();
   }
 
@@ -178,6 +183,23 @@ function formatHebrewTimeDescription(date: Date): string {
 
   return `ב-${date.toLocaleDateString('he-IL')} בשעה ${hours}:${minutes}`;
 }
+
+/**
+ * Cancel a reminder by ID (used from UI).
+ */
+export async function cancelReminderById(id: string): Promise<void> {
+  try {
+    await ReminderBridge?.cancelReminder(id);
+  } catch (e) {
+    console.log('[Reminder] Failed to cancel native alarm:', e);
+  }
+  useDabriStore.getState().removeReminder(id);
+}
+
+/**
+ * Format a reminder's trigger time for display.
+ */
+export { formatHebrewTimeDescription };
 
 /**
  * Initialize the notification channel at app startup.

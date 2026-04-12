@@ -4,12 +4,14 @@ import {
   View,
   Text,
   StyleSheet,
+  TouchableOpacity,
 } from 'react-native';
 import { ConversationEntry, Intent } from '../types';
 import { useTheme } from '../utils/theme';
 
 interface ConversationLogProps {
   conversations: ConversationEntry[];
+  onEntryPress?: (entry: ConversationEntry) => void;
 }
 
 const INTENT_LABELS: Record<Intent, string> = {
@@ -39,7 +41,7 @@ function getRelativeTime(timestamp: number): string {
   return 'היום';
 }
 
-function ConversationItem({ item }: { item: ConversationEntry }): React.JSX.Element {
+function ConversationItem({ item, onPress }: { item: ConversationEntry; onPress?: () => void }): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => StyleSheet.create({
     item: {
@@ -107,11 +109,22 @@ function ConversationItem({ item }: { item: ConversationEntry }): React.JSX.Elem
       writingDirection: 'rtl',
       textAlign: 'right',
     },
+    tapHint: {
+      fontSize: 11,
+      color: '#2196F3',
+      writingDirection: 'rtl',
+      textAlign: 'right',
+      marginTop: 6,
+    },
   }), [theme]);
 
   const dotColor = STATUS_COLORS[item.status];
+  const isReminderSuccess =
+    item.parsedIntent?.intent === 'SET_REMINDER' &&
+    item.status === 'success' &&
+    item.parsedIntent.reminderText !== '__LIST__';
 
-  return (
+  const content = (
     <View style={styles.item}>
       <Text style={styles.timeText}>{getRelativeTime(item.timestamp)}</Text>
       <Text style={styles.userText}>{item.userText}</Text>
@@ -135,11 +148,25 @@ function ConversationItem({ item }: { item: ConversationEntry }): React.JSX.Elem
           <Text style={styles.resultText}>{item.result}</Text>
         </View>
       )}
+
+      {isReminderSuccess && onPress && (
+        <Text style={styles.tapHint}>{'לחץ לפרטים ‹'}</Text>
+      )}
     </View>
   );
+
+  if (isReminderSuccess && onPress) {
+    return (
+      <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+        {content}
+      </TouchableOpacity>
+    );
+  }
+
+  return content;
 }
 
-export function ConversationLog({ conversations }: ConversationLogProps): React.JSX.Element {
+export function ConversationLog({ conversations, onEntryPress }: ConversationLogProps): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => StyleSheet.create({
     emptyContainer: {
@@ -176,7 +203,12 @@ export function ConversationLog({ conversations }: ConversationLogProps): React.
     <FlatList
       data={conversations}
       keyExtractor={(item) => item.id}
-      renderItem={({ item }) => <ConversationItem item={item} />}
+      renderItem={({ item }) => (
+        <ConversationItem
+          item={item}
+          onPress={onEntryPress ? () => onEntryPress(item) : undefined}
+        />
+      )}
       inverted
       contentContainerStyle={styles.listContent}
       showsVerticalScrollIndicator={false}

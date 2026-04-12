@@ -6,12 +6,14 @@ import {
   TouchableOpacity,
   StyleSheet,
   AppState,
+  Alert,
 } from 'react-native';
 import { useDabriStore } from '../store';
 import { useVoiceRecognition } from '../hooks/useVoiceRecognition';
 import { useSpeech } from '../hooks/useSpeech';
 import { parseIntent } from '../services/intentParser';
 import { dispatchAction } from '../services/actionDispatcher';
+import { cancelReminderById, formatHebrewTimeDescription } from '../services/reminderService';
 import { MicButton } from '../components/MicButton';
 import { VoiceOverlay } from '../components/VoiceOverlay';
 import { ConversationLog } from '../components/ConversationLog';
@@ -165,6 +167,43 @@ export function HomeScreen(): React.JSX.Element {
     }
   }, [voiceStatus, startListening, stopListening, stopSpeaking]);
 
+  const reminders = useDabriStore((s) => s.reminders);
+
+  const handleReminderPress = useCallback(
+    (entry: ConversationEntry) => {
+      if (entry.parsedIntent?.intent !== 'SET_REMINDER') return;
+
+      // Find the matching reminder by text
+      const reminderText = entry.parsedIntent.reminderText;
+      if (!reminderText || reminderText === '__LIST__') return;
+
+      const reminder = reminders.find(
+        (r) => r.text === reminderText && !r.completed,
+      );
+
+      if (!reminder) {
+        Alert.alert('תזכורת', 'התזכורת כבר בוצעה או בוטלה.');
+        return;
+      }
+
+      const timeDesc = formatHebrewTimeDescription(new Date(reminder.triggerTime));
+
+      Alert.alert(
+        'תזכורת',
+        `${reminder.text}\n${timeDesc}`,
+        [
+          { text: 'סגור', style: 'cancel' },
+          {
+            text: 'בטל תזכורת',
+            style: 'destructive',
+            onPress: () => cancelReminderById(reminder.id),
+          },
+        ],
+      );
+    },
+    [reminders],
+  );
+
   const handleOverlayClose = useCallback(() => {
     stopListening();
     stopSpeaking();
@@ -228,7 +267,7 @@ export function HomeScreen(): React.JSX.Element {
                 )}
 
                 <View style={styles.conversationContainer}>
-                  <ConversationLog conversations={conversations} />
+                  <ConversationLog conversations={conversations} onEntryPress={handleReminderPress} />
                 </View>
               </>
           ) : (

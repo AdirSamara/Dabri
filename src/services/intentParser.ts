@@ -36,8 +36,13 @@ function parseIntentWithRegex(text: string): ParsedIntent {
   // ── 0. SET_REMINDER — checked FIRST so reminder content containing action
   //    keywords (לחייג, לשלוח, לפתוח etc.) is not hijacked by later patterns ──
 
-  // LIST_REMINDERS — "מה התזכורות שלי"
-  if (/(?:מה\s+)?(?:ה)?תזכורות\s+(?:שלי|שיש\s+לי)|(?:תגיד|אמור)\s+לי.*תזכורות/.test(text)) {
+  // LIST_REMINDERS — various Hebrew phrasings for "show me my reminders"
+  if (
+    /(?:מה|איזה|אילו|כמה)\s+(?:ה)?תזכורות\s+(?:שלי|שיש\s+לי|יש\s+לי)/.test(text) ||
+    /(?:תגיד|אמור|תראה|תראי|הראה|הראי)\s+לי.*תזכורות/.test(text) ||
+    /יש\s+לי\s+תזכורות/.test(text) ||
+    /^תזכורות$/.test(text.trim())
+  ) {
     return buildReminderIntent('__LIST__', null);
   }
 
