@@ -1,5 +1,7 @@
 package com.dabri.backgroundservice
 
+import android.animation.ObjectAnimator
+import android.animation.ValueAnimator
 import android.content.Context
 import android.content.res.Resources
 import android.graphics.Color
@@ -13,6 +15,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -28,6 +31,7 @@ class VoiceOverlayManager(
     private var statusDot: View? = null
     private var statusText: TextView? = null
     private var transcriptText: TextView? = null
+    private var dotPulseAnimator: ObjectAnimator? = null
 
     // Theme colors — resolved at show() time
     private var cardBg = 0
@@ -244,6 +248,7 @@ class VoiceOverlayManager(
     }
 
     fun hide() {
+        stopDotPulse()
         overlayView?.let {
             try { windowManager.removeView(it) } catch (_: Exception) {}
         }
@@ -262,23 +267,44 @@ class VoiceOverlayManager(
                 dotBg.setColor(colorListening)
                 statusText?.setTextColor(colorListening)
                 statusText?.text = "מקשיב לך..."
+                startDotPulse()
             }
             "processing" -> {
                 dotBg.setColor(colorProcessing)
                 statusText?.setTextColor(colorProcessing)
                 statusText?.text = "מעבד נתונים..."
+                startDotPulse()
             }
             "speaking" -> {
                 dotBg.setColor(colorSpeaking)
                 statusText?.setTextColor(colorSpeaking)
                 statusText?.text = "הנה התשובה:"
+                stopDotPulse()
             }
             else -> {
                 dotBg.setColor(textSecondaryColor)
                 statusText?.setTextColor(textSecondaryColor)
                 statusText?.text = "לחץ כדי להתחיל"
+                stopDotPulse()
             }
         }
+    }
+
+    private fun startDotPulse() {
+        stopDotPulse()
+        val dot = statusDot ?: return
+        dotPulseAnimator = ObjectAnimator.ofFloat(dot, View.ALPHA, 1f, 0.3f, 1f).apply {
+            duration = 1200
+            repeatCount = ValueAnimator.INFINITE
+            interpolator = AccelerateDecelerateInterpolator()
+            start()
+        }
+    }
+
+    private fun stopDotPulse() {
+        dotPulseAnimator?.cancel()
+        dotPulseAnimator = null
+        statusDot?.alpha = 1f
     }
 
     fun updateTranscript(text: String) {
