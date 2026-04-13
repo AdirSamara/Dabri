@@ -24,9 +24,7 @@ export function initializeServices(): void {
   // Pre-warm installed apps cache (fire and forget)
   loadInstalledApps();
 
-  // Listen for background service state changes — deferred to avoid
-  // interfering with audio system at startup. Will be called lazily
-  // when the background service settings screen is opened.
-  // setupBackgroundServiceListener();
+  // Listen for background service state changes
+  setupBackgroundServiceListener();
 
 }

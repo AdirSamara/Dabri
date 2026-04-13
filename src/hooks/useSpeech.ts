@@ -47,8 +47,6 @@ export function useSpeech(): UseSpeechReturn | null {
     const handleFinish = () => setVoiceStatus('idle');
     const handleCancel = () => setVoiceStatus('idle');
 
-    // Store subscriptions — removeEventListener doesn't exist in RN 0.85's NativeEventEmitter.
-    // addEventListener returns { remove: () => void } from NativeEventEmitter.addListener.
     const finishSub = Tts.addEventListener('tts-finish', handleFinish);
     const cancelSub = Tts.addEventListener('tts-cancel', handleCancel);
 
