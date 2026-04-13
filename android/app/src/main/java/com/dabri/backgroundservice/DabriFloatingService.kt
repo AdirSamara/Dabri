@@ -35,10 +35,11 @@ class DabriFloatingService : Service() {
 
         private const val RECOGNIZER_RESET_DELAY_MS = 150L
         private const val LOCALE_HEBREW = "he-IL"
-
-        // Safety timeout: if JS doesn't call back with a command result
-        // within this time, reset to running and restart wake word.
         private const val COMMAND_SAFETY_TIMEOUT_MS = 15000L
+
+        // Listening timeouts — match main app's useVoiceRecognition behavior
+        private const val MAX_LISTENING_MS = 15000L       // Hard cap
+        private const val SILENCE_TIMEOUT_MS = 1500L      // Auto-stop after silence
     }
 
     private var notificationManager: ServiceNotificationManager? = null
@@ -52,6 +53,8 @@ class DabriFloatingService : Service() {
     private var isListening = false
     private val mainHandler = Handler(Looper.getMainLooper())
     private var commandSafetyRunnable: Runnable? = null
+    private var maxListeningRunnable: Runnable? = null
+    private var silenceRunnable: Runnable? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -100,7 +103,7 @@ class DabriFloatingService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
-        cancelCommandSafetyTimeout()
+        cancelAllTimers()
         wakeWordManager?.stop()
         destroyRecognizer()
         voiceOverlayManager?.hide()
@@ -128,7 +131,7 @@ class DabriFloatingService : Service() {
 
     private fun handlePause() {
         isPaused = true
-        cancelCommandSafetyTimeout()
+        cancelAllTimers()
         wakeWordManager?.stop()
         destroyRecognizer()
         voiceOverlayManager?.hide()
@@ -147,7 +150,7 @@ class DabriFloatingService : Service() {
 
     private fun handleStop() {
         ServiceStateManager.setEnabled(this, false)
-        cancelCommandSafetyTimeout()
+        cancelAllTimers()
         wakeWordManager?.stop()
         destroyRecognizer()
         voiceOverlayManager?.hide()
@@ -184,15 +187,11 @@ class DabriFloatingService : Service() {
         }
 
         if (remainingText.isNotBlank()) {
-            // Wake phrase + command — process directly
-            mainHandler.post {
-                bubbleManager?.updateState("processing")
-            }
+            mainHandler.post { bubbleManager?.updateState("processing") }
             emitState("processing")
             emitTranscript(remainingText, isFinal = true)
             startCommandSafetyTimeout()
         } else {
-            // Wake phrase only — open overlay
             if (Settings.canDrawOverlays(this)) {
                 mainHandler.post {
                     voiceOverlayManager?.show()
@@ -207,13 +206,16 @@ class DabriFloatingService : Service() {
         }
     }
 
-    // ── Command safety timeout ──────────────────────────────────────
-    // If JS never calls back (network failure, crash, etc.), reset after timeout.
+    // ── Timers ──────────────────────────────────────────────────────
+
+    private fun cancelAllTimers() {
+        cancelCommandSafetyTimeout()
+        cancelListeningTimers()
+    }
 
     private fun startCommandSafetyTimeout() {
         cancelCommandSafetyTimeout()
         commandSafetyRunnable = Runnable {
-            // JS didn't respond in time — reset to running
             voiceOverlayManager?.hide()
             resetToRunning()
         }
@@ -223,6 +225,35 @@ class DabriFloatingService : Service() {
     private fun cancelCommandSafetyTimeout() {
         commandSafetyRunnable?.let { mainHandler.removeCallbacks(it) }
         commandSafetyRunnable = null
+    }
+
+    private fun startListeningTimers() {
+        cancelListeningTimers()
+
+        // Hard cap: force-stop after MAX_LISTENING_MS
+        maxListeningRunnable = Runnable { forceStopListening() }
+        mainHandler.postDelayed(maxListeningRunnable!!, MAX_LISTENING_MS)
+    }
+
+    private fun resetSilenceTimer() {
+        silenceRunnable?.let { mainHandler.removeCallbacks(it) }
+        silenceRunnable = Runnable { forceStopListening() }
+        mainHandler.postDelayed(silenceRunnable!!, SILENCE_TIMEOUT_MS)
+    }
+
+    private fun cancelListeningTimers() {
+        maxListeningRunnable?.let { mainHandler.removeCallbacks(it) }
+        maxListeningRunnable = null
+        silenceRunnable?.let { mainHandler.removeCallbacks(it) }
+        silenceRunnable = null
+    }
+
+    /** Force the recognizer to stop — it will emit onResults with what it has. */
+    private fun forceStopListening() {
+        cancelListeningTimers()
+        try {
+            speechRecognizer?.stopListening()
+        } catch (_: Exception) {}
     }
 
     // ── Bubble management ───────────────────────────────────────────
@@ -279,7 +310,7 @@ class DabriFloatingService : Service() {
     }
 
     private fun handleOverlayClose() {
-        cancelCommandSafetyTimeout()
+        cancelAllTimers()
         destroyRecognizer()
         tts?.stop()
         voiceOverlayManager?.hide()
@@ -308,6 +339,7 @@ class DabriFloatingService : Service() {
                     putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
                 }
                 speechRecognizer?.startListening(intent)
+                startListeningTimers()
             } catch (_: Exception) {
                 isListening = false
                 mainHandler.post {
@@ -320,6 +352,7 @@ class DabriFloatingService : Service() {
 
     private fun destroyRecognizer() {
         isListening = false
+        cancelListeningTimers()
         try {
             speechRecognizer?.stopListening()
             speechRecognizer?.cancel()
@@ -344,10 +377,13 @@ class DabriFloatingService : Service() {
                     voiceOverlayManager?.updateTranscript(text)
                 }
                 emitTranscript(text, isFinal = false)
+                // Reset silence timer on each partial result (user is still speaking)
+                resetSilenceTimer()
             }
 
             override fun onResults(results: Bundle?) {
                 isListening = false
+                cancelListeningTimers()
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 val text = matches?.firstOrNull() ?: ""
 
@@ -358,13 +394,12 @@ class DabriFloatingService : Service() {
                 emitState("processing")
                 emitTranscript(text, isFinal = true)
                 destroyRecognizer()
-
-                // Start safety timeout — if JS doesn't respond, reset
                 startCommandSafetyTimeout()
             }
 
             override fun onError(error: Int) {
                 isListening = false
+                cancelListeningTimers()
                 destroyRecognizer()
 
                 val errorMsg = when (error) {
@@ -408,7 +443,12 @@ class DabriFloatingService : Service() {
     private fun initTts() {
         tts = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                tts?.language = Locale("he", "IL")
+                val langResult = tts?.setLanguage(Locale("he", "IL"))
+                // Fallback to any available Hebrew variant
+                if (langResult == TextToSpeech.LANG_MISSING_DATA ||
+                    langResult == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    tts?.setLanguage(Locale("he"))
+                }
                 tts?.setSpeechRate(0.85f)
                 ttsReady = true
             }
@@ -432,7 +472,11 @@ class DabriFloatingService : Service() {
             }
         })
 
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "dabri_result")
+        // Use STREAM_MUSIC with explicit params to ensure audio plays
+        val params = Bundle().apply {
+            putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_MUSIC)
+        }
+        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, "dabri_result")
     }
 
     private fun resetToRunning() {
