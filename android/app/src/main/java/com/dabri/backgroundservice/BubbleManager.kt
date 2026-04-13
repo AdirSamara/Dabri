@@ -5,29 +5,39 @@ import android.animation.PropertyValuesHolder
 import android.animation.ValueAnimator
 import android.content.Context
 import android.content.res.Resources
+import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageView
-import androidx.core.content.ContextCompat
+import android.widget.TextView
 import com.dabri.R
 import kotlin.math.abs
+import kotlin.math.sqrt
 
 class BubbleManager(
     private val context: Context,
     private val onBubbleTapped: () -> Unit,
-    private val onBubbleLongPressed: () -> Unit
+    private val onBubbleLongPressed: () -> Unit,
+    private val onBubbleDismissed: () -> Unit
 ) {
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private var bubbleView: FrameLayout? = null
     private var layoutParams: WindowManager.LayoutParams? = null
     private var pulseAnimator: ObjectAnimator? = null
+
+    // Dismiss zone
+    private var dismissZoneView: FrameLayout? = null
+    private var dismissZoneParams: WindowManager.LayoutParams? = null
+    private var isNearDismissZone = false
 
     // Touch tracking
     private var initialX = 0
@@ -39,19 +49,14 @@ class BubbleManager(
     private var longPressHandler: Handler? = null
     private var longPressRunnable: Runnable? = null
 
-    // Colors for states
-    private val colorIdle = 0xFF1565C0.toInt()
-    private val colorListening = 0xFFF44336.toInt()
-    private val colorProcessing = 0xFFFF9800.toInt()
-    private val colorPaused = 0xFF9E9E9E.toInt()
-    private val colorSpeaking = 0xFF4CAF50.toInt()
-
     companion object {
         private const val BUBBLE_SIZE_DP = 56
         private const val DRAG_THRESHOLD_DP = 10
         private const val TAP_DEBOUNCE_MS = 500L
         private const val LONG_PRESS_MS = 600L
         private const val SNAP_DURATION_MS = 250L
+        private const val DISMISS_ZONE_SIZE_DP = 48
+        private const val DISMISS_ZONE_RADIUS_DP = 60
     }
 
     fun show() {
@@ -59,24 +64,26 @@ class BubbleManager(
 
         val bubbleSizePx = dpToPx(BUBBLE_SIZE_DP)
 
-        // Create bubble view
+        // Create bubble view with app icon
         val bubble = FrameLayout(context).apply {
-            val bg = ContextCompat.getDrawable(context, R.drawable.bubble_background)
-            bg?.setTint(colorIdle)
+            val bg = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.parseColor("#1565C0"))
+            }
             background = bg
             elevation = dpToPx(8).toFloat()
 
             val icon = ImageView(context).apply {
-                setImageResource(R.drawable.ic_bubble)
-                val iconSize = dpToPx(24)
-                layoutParams = FrameLayout.LayoutParams(iconSize, iconSize).apply {
-                    gravity = Gravity.CENTER
-                }
+                setImageResource(R.drawable.ic_launcher_foreground)
+                scaleType = ImageView.ScaleType.CENTER_INSIDE
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
             }
             addView(icon)
         }
 
-        // Window params
         val params = WindowManager.LayoutParams().apply {
             type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -91,7 +98,6 @@ class BubbleManager(
             height = bubbleSizePx
             gravity = Gravity.TOP or Gravity.START
 
-            // Start at right edge, vertically centered
             val displayMetrics = Resources.getSystem().displayMetrics
             x = displayMetrics.widthPixels - bubbleSizePx
             y = displayMetrics.heightPixels / 2 - bubbleSizePx / 2
@@ -104,17 +110,14 @@ class BubbleManager(
             bubbleView = bubble
             layoutParams = params
             startPulseAnimation()
-        } catch (e: Exception) {
-            // Permission may have been revoked
-        }
+        } catch (_: Exception) {}
     }
 
     fun hide() {
         stopPulseAnimation()
+        hideDismissZone()
         bubbleView?.let {
-            try {
-                windowManager.removeView(it)
-            } catch (_: Exception) {}
+            try { windowManager.removeView(it) } catch (_: Exception) {}
         }
         bubbleView = null
         layoutParams = null
@@ -123,16 +126,109 @@ class BubbleManager(
     fun isShowing(): Boolean = bubbleView != null
 
     fun updateState(state: String) {
-        val bg = bubbleView?.background ?: return
+        val bg = bubbleView?.background as? GradientDrawable ?: return
         val color = when (state) {
-            "listening" -> colorListening
-            "processing" -> colorProcessing
-            "speaking" -> colorSpeaking
-            "paused" -> colorPaused
-            else -> colorIdle
+            "listening" -> Color.parseColor("#C62828")
+            "processing" -> Color.parseColor("#E65100")
+            "speaking" -> Color.parseColor("#2E7D32")
+            "paused" -> Color.parseColor("#9E9E9E")
+            else -> Color.parseColor("#1565C0")
         }
-        bg.setTint(color)
+        bg.setColor(color)
     }
+
+    // ── Dismiss zone ────────────────────────────────────────────────
+
+    private fun showDismissZone() {
+        if (dismissZoneView != null) return
+
+        val zoneSizePx = dpToPx(DISMISS_ZONE_SIZE_DP)
+        val displayMetrics = Resources.getSystem().displayMetrics
+
+        val zone = FrameLayout(context).apply {
+            val bg = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.parseColor("#44FFFFFF"))
+                setStroke(dpToPx(2), Color.parseColor("#88FFFFFF"))
+            }
+            background = bg
+
+            val xText = TextView(context).apply {
+                text = "✕"
+                setTextColor(Color.WHITE)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+                gravity = Gravity.CENTER
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+            }
+            addView(xText)
+        }
+
+        val params = WindowManager.LayoutParams().apply {
+            type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+            }
+            format = PixelFormat.TRANSLUCENT
+            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            width = zoneSizePx
+            height = zoneSizePx
+            gravity = Gravity.TOP or Gravity.START
+            x = displayMetrics.widthPixels / 2 - zoneSizePx / 2
+            y = displayMetrics.heightPixels - zoneSizePx - dpToPx(60)
+        }
+
+        try {
+            windowManager.addView(zone, params)
+            dismissZoneView = zone
+            dismissZoneParams = params
+        } catch (_: Exception) {}
+    }
+
+    private fun hideDismissZone() {
+        dismissZoneView?.let {
+            try { windowManager.removeView(it) } catch (_: Exception) {}
+        }
+        dismissZoneView = null
+        dismissZoneParams = null
+        isNearDismissZone = false
+    }
+
+    private fun updateDismissZoneHighlight(bubbleX: Int, bubbleY: Int) {
+        val displayMetrics = Resources.getSystem().displayMetrics
+        val zoneSizePx = dpToPx(DISMISS_ZONE_SIZE_DP)
+        val bubbleSizePx = dpToPx(BUBBLE_SIZE_DP)
+        val radiusPx = dpToPx(DISMISS_ZONE_RADIUS_DP)
+
+        val zoneCenterX = displayMetrics.widthPixels / 2
+        val zoneCenterY = displayMetrics.heightPixels - zoneSizePx / 2 - dpToPx(60)
+        val bubbleCenterX = bubbleX + bubbleSizePx / 2
+        val bubbleCenterY = bubbleY + bubbleSizePx / 2
+
+        val dx = (bubbleCenterX - zoneCenterX).toFloat()
+        val dy = (bubbleCenterY - zoneCenterY).toFloat()
+        val distance = sqrt(dx * dx + dy * dy)
+
+        val nearNow = distance < radiusPx
+        if (nearNow != isNearDismissZone) {
+            isNearDismissZone = nearNow
+            val bg = dismissZoneView?.background as? GradientDrawable ?: return
+            if (nearNow) {
+                bg.setColor(Color.parseColor("#66FF5252"))
+                bg.setStroke(dpToPx(2), Color.parseColor("#FFFF5252"))
+            } else {
+                bg.setColor(Color.parseColor("#44FFFFFF"))
+                bg.setStroke(dpToPx(2), Color.parseColor("#88FFFFFF"))
+            }
+        }
+    }
+
+    // ── Touch handling ──────────────────────────────────────────────
 
     private fun setupTouchListener(bubble: FrameLayout, params: WindowManager.LayoutParams) {
         longPressHandler = Handler(Looper.getMainLooper())
@@ -146,7 +242,6 @@ class BubbleManager(
                     initialTouchY = event.rawY
                     isDragging = false
 
-                    // Start long press timer
                     longPressRunnable = Runnable {
                         if (!isDragging) {
                             onBubbleLongPressed()
@@ -164,6 +259,7 @@ class BubbleManager(
                         isDragging = true
                         longPressHandler?.removeCallbacks(longPressRunnable!!)
                         stopPulseAnimation()
+                        showDismissZone()
                     }
 
                     if (isDragging) {
@@ -172,6 +268,7 @@ class BubbleManager(
                         try {
                             windowManager.updateViewLayout(bubble, params)
                         } catch (_: Exception) {}
+                        updateDismissZoneHighlight(params.x, params.y)
                     }
                     true
                 }
@@ -179,10 +276,15 @@ class BubbleManager(
                     longPressHandler?.removeCallbacks(longPressRunnable!!)
 
                     if (isDragging) {
-                        snapToEdge(params, bubble)
-                        startPulseAnimation()
+                        if (isNearDismissZone) {
+                            hideDismissZone()
+                            onBubbleDismissed()
+                        } else {
+                            hideDismissZone()
+                            snapToEdge(params, bubble)
+                            startPulseAnimation()
+                        }
                     } else {
-                        // Tap — debounce
                         val now = System.currentTimeMillis()
                         if (now - lastTapTime > TAP_DEBOUNCE_MS) {
                             lastTapTime = now
@@ -193,6 +295,7 @@ class BubbleManager(
                 }
                 MotionEvent.ACTION_CANCEL -> {
                     longPressHandler?.removeCallbacks(longPressRunnable!!)
+                    hideDismissZone()
                     if (isDragging) {
                         snapToEdge(params, bubble)
                         startPulseAnimation()
@@ -209,19 +312,13 @@ class BubbleManager(
         val bubbleWidth = dpToPx(BUBBLE_SIZE_DP)
         val centerX = params.x + bubbleWidth / 2
 
-        val targetX = if (centerX < screenWidth / 2) {
-            0 // Snap left
-        } else {
-            screenWidth - bubbleWidth // Snap right
-        }
+        val targetX = if (centerX < screenWidth / 2) 0 else screenWidth - bubbleWidth
 
         val animator = ValueAnimator.ofInt(params.x, targetX).apply {
             duration = SNAP_DURATION_MS
             addUpdateListener { anim ->
                 params.x = anim.animatedValue as Int
-                try {
-                    windowManager.updateViewLayout(bubble, params)
-                } catch (_: Exception) {}
+                try { windowManager.updateViewLayout(bubble, params) } catch (_: Exception) {}
             }
         }
         animator.start()

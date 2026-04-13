@@ -30,7 +30,7 @@ class DabriFloatingService : Service() {
         const val EXTRA_RESULT_SUCCESS = "result_success"
         const val EXTRA_RESULT_MESSAGE = "result_message"
 
-        private const val AUTO_CLOSE_DELAY_MS = 3000L
+        private const val RECOGNIZER_RESET_DELAY_MS = 150L
         private const val LOCALE_HEBREW = "he-IL"
     }
 
@@ -56,7 +56,8 @@ class DabriFloatingService : Service() {
         bubbleManager = BubbleManager(
             context = this,
             onBubbleTapped = { handleBubbleTap() },
-            onBubbleLongPressed = { handleBubbleLongPress() }
+            onBubbleLongPressed = { handleBubbleLongPress() },
+            onBubbleDismissed = { handleBubbleDismissed() }
         )
 
         voiceOverlayManager = VoiceOverlayManager(
@@ -81,15 +82,13 @@ class DabriFloatingService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
-        stopListening()
+        destroyRecognizer()
         voiceOverlayManager?.hide()
         bubbleManager?.hide()
-        speechRecognizer?.destroy()
         tts?.stop()
         tts?.shutdown()
         bubbleManager = null
         voiceOverlayManager = null
-        speechRecognizer = null
         tts = null
         super.onDestroy()
         emitState("stopped")
@@ -107,7 +106,7 @@ class DabriFloatingService : Service() {
 
     private fun handlePause() {
         isPaused = true
-        stopListening()
+        destroyRecognizer()
         voiceOverlayManager?.hide()
         bubbleManager?.hide()
         notificationManager?.updateNotification(isPaused = true)
@@ -123,7 +122,7 @@ class DabriFloatingService : Service() {
 
     private fun handleStop() {
         ServiceStateManager.setEnabled(this, false)
-        stopListening()
+        destroyRecognizer()
         voiceOverlayManager?.hide()
         bubbleManager?.hide()
         stopSelf()
@@ -139,7 +138,6 @@ class DabriFloatingService : Service() {
 
     private fun handleBubbleTap() {
         if (voiceOverlayManager?.isShowing() == true) {
-            // Tapping bubble while overlay is open = cancel
             handleOverlayClose()
             return
         }
@@ -169,8 +167,13 @@ class DabriFloatingService : Service() {
         } catch (_: Exception) {}
     }
 
+    private fun handleBubbleDismissed() {
+        // User dragged bubble to X zone — hide bubble but keep service running
+        bubbleManager?.hide()
+    }
+
     private fun handleOverlayClose() {
-        stopListening()
+        destroyRecognizer()
         tts?.stop()
         voiceOverlayManager?.hide()
         bubbleManager?.updateState("running")
@@ -183,9 +186,11 @@ class DabriFloatingService : Service() {
         if (isListening) return
         isListening = true
 
-        mainHandler.post {
+        // Destroy any existing recognizer first, then create fresh after a delay
+        destroyRecognizer()
+
+        mainHandler.postDelayed({
             try {
-                speechRecognizer?.destroy()
                 speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
                 speechRecognizer?.setRecognitionListener(createRecognitionListener())
 
@@ -198,20 +203,22 @@ class DabriFloatingService : Service() {
                 speechRecognizer?.startListening(intent)
             } catch (_: Exception) {
                 isListening = false
-                voiceOverlayManager?.updateStatus("idle")
-                voiceOverlayManager?.updateTranscript("שגיאה בהפעלת המיקרופון")
+                mainHandler.post {
+                    voiceOverlayManager?.updateStatus("idle")
+                    voiceOverlayManager?.updateTranscript("שגיאה בהפעלת המיקרופון")
+                }
             }
-        }
+        }, RECOGNIZER_RESET_DELAY_MS)
     }
 
-    private fun stopListening() {
+    private fun destroyRecognizer() {
         isListening = false
-        mainHandler.post {
-            try {
-                speechRecognizer?.stopListening()
-                speechRecognizer?.cancel()
-            } catch (_: Exception) {}
-        }
+        try {
+            speechRecognizer?.stopListening()
+            speechRecognizer?.cancel()
+            speechRecognizer?.destroy()
+        } catch (_: Exception) {}
+        speechRecognizer = null
     }
 
     private fun createRecognitionListener(): RecognitionListener {
@@ -237,17 +244,24 @@ class DabriFloatingService : Service() {
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 val text = matches?.firstOrNull() ?: ""
 
+                // Bug 7 fix: Close overlay IMMEDIATELY after final result.
+                // Bubble stays in "processing" state while JS processes the command.
                 mainHandler.post {
-                    voiceOverlayManager?.updateTranscript(text)
-                    voiceOverlayManager?.updateStatus("processing")
+                    voiceOverlayManager?.hide()
                     bubbleManager?.updateState("processing")
                 }
                 emitState("processing")
                 emitTranscript(text, isFinal = true)
+
+                // Destroy recognizer so next attempt starts clean (Bug 5)
+                destroyRecognizer()
             }
 
             override fun onError(error: Int) {
                 isListening = false
+                // Destroy recognizer on error so next attempt is clean (Bug 5)
+                destroyRecognizer()
+
                 val errorMsg = when (error) {
                     SpeechRecognizer.ERROR_AUDIO -> "המיקרופון בשימוש על ידי אפליקציה אחרת"
                     SpeechRecognizer.ERROR_NO_MATCH -> "לא הבנתי, נסה שוב"
@@ -259,11 +273,11 @@ class DabriFloatingService : Service() {
                     voiceOverlayManager?.updateStatus("idle")
                     bubbleManager?.updateState("running")
                 }
-                // Auto-close after showing error
+                // Auto-close overlay after showing error briefly
                 mainHandler.postDelayed({
                     voiceOverlayManager?.hide()
                     emitState("running")
-                }, AUTO_CLOSE_DELAY_MS)
+                }, 2000L)
             }
         }
     }
@@ -274,14 +288,12 @@ class DabriFloatingService : Service() {
         val success = intent.getBooleanExtra(EXTRA_RESULT_SUCCESS, false)
         val message = intent.getStringExtra(EXTRA_RESULT_MESSAGE) ?: ""
 
+        // Bug 7: Overlay is already closed at this point. Just speak result via TTS.
         mainHandler.post {
-            voiceOverlayManager?.updateTranscript(message)
-            voiceOverlayManager?.updateStatus("speaking")
             bubbleManager?.updateState("speaking")
         }
         emitState("speaking")
 
-        // Speak the result
         speakResult(message)
     }
 
@@ -291,10 +303,6 @@ class DabriFloatingService : Service() {
         tts = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 tts?.language = Locale("he", "IL")
-                // Read speed from SharedPreferences (same key as Zustand store)
-                val speed = getSharedPreferences("dabri-store", Context.MODE_PRIVATE)
-                    .getString("dabri-store", null)
-                // Default speed 0.6 — we'll use a reasonable default
                 tts?.setSpeechRate(0.85f)
                 ttsReady = true
             }
@@ -303,30 +311,28 @@ class DabriFloatingService : Service() {
 
     private fun speakResult(text: String) {
         if (!ttsReady || text.isBlank()) {
-            autoCloseOverlay()
+            resetToRunning()
             return
         }
 
         tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String?) {}
             override fun onDone(utteranceId: String?) {
-                mainHandler.post { autoCloseOverlay() }
+                mainHandler.post { resetToRunning() }
             }
             @Deprecated("Deprecated in Java")
             override fun onError(utteranceId: String?) {
-                mainHandler.post { autoCloseOverlay() }
+                mainHandler.post { resetToRunning() }
             }
         })
 
         tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "dabri_result")
     }
 
-    private fun autoCloseOverlay() {
-        mainHandler.postDelayed({
-            voiceOverlayManager?.hide()
-            bubbleManager?.updateState("running")
-            emitState("running")
-        }, AUTO_CLOSE_DELAY_MS)
+    // Bug 10: Always reset bubble to "running" after TTS finishes
+    private fun resetToRunning() {
+        bubbleManager?.updateState("running")
+        emitState("running")
     }
 
     // ── JS communication ────────────────────────────────────────────

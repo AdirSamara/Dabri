@@ -1,6 +1,7 @@
 package com.dabri.backgroundservice
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -22,24 +23,27 @@ class BackgroundServiceModule(private val reactContext: ReactApplicationContext)
         const val NAME = "BackgroundServiceModule"
     }
 
+    // Use applicationContext to avoid "not attached to activity" crashes
+    private val appContext: Context get() = reactContext.applicationContext
+
     override fun getName() = NAME
 
     @ReactMethod
     fun startService(promise: Promise) {
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(reactContext)) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(appContext)) {
                 promise.reject("OVERLAY_PERMISSION_REQUIRED", "Overlay permission is not granted")
                 return
             }
 
-            val intent = Intent(reactContext, DabriFloatingService::class.java)
+            val intent = Intent(appContext, DabriFloatingService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                reactContext.startForegroundService(intent)
+                appContext.startForegroundService(intent)
             } else {
-                reactContext.startService(intent)
+                appContext.startService(intent)
             }
 
-            ServiceStateManager.setEnabled(reactContext, true)
+            ServiceStateManager.setEnabled(appContext, true)
             promise.resolve(true)
         } catch (e: Exception) {
             promise.reject("START_ERROR", e.message ?: "Failed to start service", e)
@@ -49,11 +53,11 @@ class BackgroundServiceModule(private val reactContext: ReactApplicationContext)
     @ReactMethod
     fun stopService(promise: Promise) {
         try {
-            val intent = Intent(reactContext, DabriFloatingService::class.java).apply {
+            val intent = Intent(appContext, DabriFloatingService::class.java).apply {
                 action = DabriFloatingService.ACTION_STOP
             }
-            reactContext.startService(intent)
-            ServiceStateManager.setEnabled(reactContext, false)
+            appContext.startService(intent)
+            ServiceStateManager.setEnabled(appContext, false)
             promise.resolve(true)
         } catch (e: Exception) {
             promise.reject("STOP_ERROR", e.message ?: "Failed to stop service", e)
@@ -63,10 +67,10 @@ class BackgroundServiceModule(private val reactContext: ReactApplicationContext)
     @ReactMethod
     fun pauseService(promise: Promise) {
         try {
-            val intent = Intent(reactContext, DabriFloatingService::class.java).apply {
+            val intent = Intent(appContext, DabriFloatingService::class.java).apply {
                 action = DabriFloatingService.ACTION_PAUSE
             }
-            reactContext.startService(intent)
+            appContext.startService(intent)
             promise.resolve(true)
         } catch (e: Exception) {
             promise.reject("PAUSE_ERROR", e.message ?: "Failed to pause service", e)
@@ -76,13 +80,13 @@ class BackgroundServiceModule(private val reactContext: ReactApplicationContext)
     @ReactMethod
     fun resumeService(promise: Promise) {
         try {
-            val intent = Intent(reactContext, DabriFloatingService::class.java).apply {
+            val intent = Intent(appContext, DabriFloatingService::class.java).apply {
                 action = DabriFloatingService.ACTION_RESUME
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                reactContext.startForegroundService(intent)
+                appContext.startForegroundService(intent)
             } else {
-                reactContext.startService(intent)
+                appContext.startService(intent)
             }
             promise.resolve(true)
         } catch (e: Exception) {
@@ -93,7 +97,7 @@ class BackgroundServiceModule(private val reactContext: ReactApplicationContext)
     @ReactMethod
     fun isServiceRunning(promise: Promise) {
         try {
-            promise.resolve(ServiceStateManager.wasEnabled(reactContext))
+            promise.resolve(ServiceStateManager.wasEnabled(appContext))
         } catch (e: Exception) {
             promise.reject("CHECK_ERROR", e.message ?: "Failed to check service state", e)
         }
@@ -102,8 +106,7 @@ class BackgroundServiceModule(private val reactContext: ReactApplicationContext)
     @ReactMethod
     fun getServiceState(promise: Promise) {
         try {
-            // If service was enabled but we can't confirm it's running, report based on preference
-            val enabled = ServiceStateManager.wasEnabled(reactContext)
+            val enabled = ServiceStateManager.wasEnabled(appContext)
             promise.resolve(if (enabled) "running" else "stopped")
         } catch (e: Exception) {
             promise.reject("STATE_ERROR", e.message ?: "Failed to get service state", e)
@@ -114,7 +117,7 @@ class BackgroundServiceModule(private val reactContext: ReactApplicationContext)
     fun checkOverlayPermission(promise: Promise) {
         try {
             val granted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                Settings.canDrawOverlays(reactContext)
+                Settings.canDrawOverlays(appContext)
             } else {
                 true
             }
@@ -130,11 +133,11 @@ class BackgroundServiceModule(private val reactContext: ReactApplicationContext)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 val intent = Intent(
                     Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:${reactContext.packageName}")
+                    Uri.parse("package:${appContext.packageName}")
                 ).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
-                reactContext.startActivity(intent)
+                appContext.startActivity(intent)
             }
             promise.resolve(true)
         } catch (e: Exception) {
@@ -147,27 +150,24 @@ class BackgroundServiceModule(private val reactContext: ReactApplicationContext)
         try {
             val map = Arguments.createMap()
 
-            // Overlay permission
             val overlayGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                Settings.canDrawOverlays(reactContext)
+                Settings.canDrawOverlays(appContext)
             } else {
                 true
             }
             map.putBoolean("overlayGranted", overlayGranted)
 
-            // Notification permission (API 33+)
             val notificationsGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 ContextCompat.checkSelfPermission(
-                    reactContext, Manifest.permission.POST_NOTIFICATIONS
+                    appContext, Manifest.permission.POST_NOTIFICATIONS
                 ) == PackageManager.PERMISSION_GRANTED
             } else {
                 true
             }
             map.putBoolean("notificationsGranted", notificationsGranted)
 
-            // Microphone permission
             val microphoneGranted = ContextCompat.checkSelfPermission(
-                reactContext, Manifest.permission.RECORD_AUDIO
+                appContext, Manifest.permission.RECORD_AUDIO
             ) == PackageManager.PERMISSION_GRANTED
             map.putBoolean("microphoneGranted", microphoneGranted)
 
@@ -180,12 +180,12 @@ class BackgroundServiceModule(private val reactContext: ReactApplicationContext)
     @ReactMethod
     fun notifyCommandResult(success: Boolean, message: String, promise: Promise) {
         try {
-            val intent = Intent(reactContext, DabriFloatingService::class.java).apply {
+            val intent = Intent(appContext, DabriFloatingService::class.java).apply {
                 action = DabriFloatingService.ACTION_COMMAND_RESULT
                 putExtra(DabriFloatingService.EXTRA_RESULT_SUCCESS, success)
                 putExtra(DabriFloatingService.EXTRA_RESULT_MESSAGE, message)
             }
-            reactContext.startService(intent)
+            appContext.startService(intent)
             promise.resolve(true)
         } catch (e: Exception) {
             promise.reject("RESULT_ERROR", e.message ?: "Failed to notify command result", e)
