@@ -33,8 +33,9 @@ async function handleOpenApp(intent: ParsedIntent): Promise<ActionResult> {
 
   const best = result.matches[0];
 
-  // Single match — launch directly
-  if (result.matches.length === 1) {
+  // Single match, or multiple matches with same/similar labels — launch the first
+  const uniqueLabels = new Set(result.matches.map((m) => m.label.toLowerCase()));
+  if (result.matches.length === 1 || uniqueLabels.size === 1) {
     try {
       await AppLauncherBridge.launchApp(best.packageName);
       return { success: true, message: `פותח ${best.label}` };
@@ -43,7 +44,7 @@ async function handleOpenApp(intent: ParsedIntent): Promise<ActionResult> {
     }
   }
 
-  // Multiple matches — disambiguation
+  // Multiple matches with different labels — disambiguation
   const candidates: Contact[] = result.matches.map((app) => ({
     recordID: app.packageName,
     displayName: app.label,

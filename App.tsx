@@ -12,6 +12,7 @@ import { AboutScreen } from './src/screens/AboutScreen';
 import { RemindersScreen } from './src/screens/RemindersScreen';
 import { SilenceTimeoutSettingsScreen } from './src/screens/SilenceTimeoutSettingsScreen';
 import { NavigationSettingsScreen } from './src/screens/NavigationSettingsScreen';
+import { BackgroundServiceSettingsScreen } from './src/screens/BackgroundServiceSettingsScreen';
 import { initializeServices } from './src/services';
 import { useDabriStore } from './src/store';
 import { lightTheme, darkTheme } from './src/utils/theme';
@@ -27,6 +28,7 @@ initializeServices();
 export type RootStackParamList = {
   Home: undefined;
   Settings: undefined;
+  BackgroundServiceSettings: undefined;
   AssistantSettings: undefined;
   ApiKeySettings: undefined;
   VoiceSpeedSettings: undefined;
@@ -111,6 +113,11 @@ function App(): React.JSX.Element {
             name="Settings"
             component={SettingsScreen}
             options={{ headerTitle: 'הגדרות' }}
+          />
+          <Stack.Screen
+            name="BackgroundServiceSettings"
+            component={BackgroundServiceSettingsScreen}
+            options={{ headerTitle: 'שירות רקע' }}
           />
           <Stack.Screen
             name="AssistantSettings"

@@ -22,6 +22,7 @@ import { SmsViewerModal } from '../components/SmsViewerModal';
 import { generateId, normalizeHebrew } from '../utils/hebrewUtils';
 import { ConversationEntry, Reminder, Contact, SmsMessage } from '../types';
 import AssistantBridge from '../native/AssistantBridge';
+import BackgroundServiceBridge from '../native/BackgroundServiceBridge';
 import { useTheme } from '../utils/theme';
 import { AppIcon } from '../components/AppIcon';
 
@@ -135,6 +136,41 @@ export function HomeScreen(): React.JSX.Element {
       textAlign: 'right',
       flex: 1,
     },
+    serviceBanner: {
+      backgroundColor: theme.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+    },
+    serviceBannerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    serviceBannerInfo: {
+      flexDirection: 'row-reverse',
+      alignItems: 'center',
+      gap: 8,
+    },
+    serviceDot: { width: 8, height: 8, borderRadius: 4 },
+    serviceBannerText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.text,
+      writingDirection: 'rtl',
+    },
+    serviceStopButton: {
+      backgroundColor: '#F4433615',
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+    },
+    serviceStopText: {
+      fontSize: 13,
+      color: '#F44336',
+      fontWeight: '600',
+    },
   }), [theme]);
 
   const {
@@ -144,6 +180,7 @@ export function HomeScreen(): React.JSX.Element {
     geminiApiKey,
     addConversation,
     updateConversation,
+    backgroundServiceState,
   } = useDabriStore();
 
   const speechResult = useSpeech();
@@ -262,12 +299,14 @@ export function HomeScreen(): React.JSX.Element {
     onResult: handleVoiceResult,
   });
 
-  const handleMicPress = useCallback(() => {
+  const handleMicPress = useCallback(async () => {
     if (voiceStatus === 'listening') {
       stopListening();
     } else if (voiceStatus === 'speaking') {
       stopSpeaking();
     } else if (voiceStatus === 'idle') {
+      // Ensure wake word is paused and mic is released before we start
+      try { await BackgroundServiceBridge?.pauseWakeWord(); } catch (_) {}
       setIsOverlayVisible(true);
       startListening();
     }
@@ -382,6 +421,14 @@ export function HomeScreen(): React.JSX.Element {
     setEditingReminder(null);
   }, []);
 
+  const handleStopService = useCallback(async () => {
+    try {
+      await BackgroundServiceBridge?.stopService();
+    } catch (e) {
+      console.log('[HomeScreen] Failed to stop service:', e);
+    }
+  }, []);
+
   const handleOverlayClose = useCallback(() => {
     stopListening();
     stopSpeaking();
@@ -405,21 +452,68 @@ export function HomeScreen(): React.JSX.Element {
     if (!didCheckAssist.current) {
       didCheckAssist.current = true;
       checkAndListen();
+
+      // Sync background service state
+      if (BackgroundServiceBridge) {
+        BackgroundServiceBridge.getServiceState().then((state) => {
+          useDabriStore.getState().setBackgroundServiceState(state);
+        }).catch(() => {});
+      }
     }
 
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') {
+    // Pause wake word when app is active (avoids mic conflict),
+    // resume when going to background
+    if (BackgroundServiceBridge) {
+      BackgroundServiceBridge.pauseWakeWord().catch(() => {});
+    }
+
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
         checkAndListen();
+        // Pause wake word so main app can use the mic
+        BackgroundServiceBridge?.pauseWakeWord().catch(() => {});
+      } else if (nextState === 'background') {
+        // Resume wake word when app goes to background
+        BackgroundServiceBridge?.resumeWakeWord().catch(() => {});
       }
     });
 
-    return () => subscription.remove();
+    return () => {
+      subscription.remove();
+      // Resume wake word when HomeScreen unmounts
+      BackgroundServiceBridge?.resumeWakeWord().catch(() => {});
+    };
   }, []);
 
   const hasConversations = conversations.length > 0;
 
   return (
       <SafeAreaView style={styles.container}>
+        {backgroundServiceState !== 'stopped' && (
+          <View style={styles.serviceBanner}>
+            <View style={styles.serviceBannerRow}>
+              <TouchableOpacity style={styles.serviceStopButton} onPress={handleStopService}>
+                <Text style={styles.serviceStopText}>כבה</Text>
+              </TouchableOpacity>
+              <View style={styles.serviceBannerInfo}>
+                <View
+                  style={[
+                    styles.serviceDot,
+                    {
+                      backgroundColor:
+                        backgroundServiceState === 'paused' ? '#FF9800' : '#4CAF50',
+                    },
+                  ]}
+                />
+                <Text style={styles.serviceBannerText}>
+                  {backgroundServiceState === 'paused'
+                    ? 'שירות רקע מושהה'
+                    : 'שירות רקע פעיל'}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
         <View style={styles.mainContent}>
           {hasConversations ? (
               <>
