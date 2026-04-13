@@ -2,6 +2,7 @@ package com.dabri.backgroundservice
 
 import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -19,54 +20,63 @@ class WakeWordManager(
     private var wakePhrase = "היי דברי"
     private var matchVariants: List<String> = getMatchVariants(wakePhrase)
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private var savedNotificationVolume = 0
+    private var savedMusicVolume = 0
 
     companion object {
-        private const val RESTART_DELAY_MS = 150L
-        private const val ERROR_RESTART_DELAY_MS = 300L
-        private const val BUSY_RESTART_DELAY_MS = 1500L
+        private const val RESTART_DELAY_MS = 300L
+        private const val ERROR_RESTART_DELAY_MS = 500L
+        private const val BUSY_RESTART_DELAY_MS = 2000L
     }
 
     fun start(phrase: String) {
+        // Stop any existing session first
+        stopInternal()
+
         wakePhrase = phrase
         matchVariants = getMatchVariants(phrase)
         isActive = true
-        startRecognizer()
+
+        // Mute beep sounds before starting the recognition loop
+        muteBeep()
+
+        // Small delay to ensure clean state
+        mainHandler.postDelayed({ startRecognizer() }, 200L)
     }
 
     fun stop() {
+        stopInternal()
+        restoreBeep()
+    }
+
+    fun isRunning(): Boolean = isActive
+
+    private fun stopInternal() {
         isActive = false
         mainHandler.removeCallbacksAndMessages(null)
         destroyRecognizer()
     }
 
-    fun isRunning(): Boolean = isActive
-
     private fun startRecognizer() {
         if (!isActive) return
 
-        mainHandler.post {
-            destroyRecognizer()
+        destroyRecognizer()
 
-            try {
-                recognizer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                    SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
-                    SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
-                } else {
-                    SpeechRecognizer.createSpeechRecognizer(context)
-                }
+        try {
+            // Always use cloud recognizer — on-device often lacks Hebrew support
+            recognizer = SpeechRecognizer.createSpeechRecognizer(context)
+            recognizer?.setRecognitionListener(createListener())
 
-                recognizer?.setRecognitionListener(createListener())
-
-                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "he-IL")
-                    putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-                }
-                recognizer?.startListening(intent)
-            } catch (_: Exception) {
-                scheduleRestart(ERROR_RESTART_DELAY_MS)
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "he-IL")
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
             }
+            recognizer?.startListening(intent)
+        } catch (_: Exception) {
+            scheduleRestart(ERROR_RESTART_DELAY_MS)
         }
     }
 
@@ -83,6 +93,28 @@ class WakeWordManager(
         if (!isActive) return
         mainHandler.postDelayed({ startRecognizer() }, delayMs)
     }
+
+    // ── Mute/restore beep sounds ────────────────────────────────────
+    // SpeechRecognizer plays a beep on every startListening().
+    // Mute notification and music streams to suppress it during wake word loop.
+
+    private fun muteBeep() {
+        try {
+            savedNotificationVolume = audioManager.getStreamVolume(AudioManager.STREAM_NOTIFICATION)
+            savedMusicVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+            audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, 0, 0)
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, 0, 0)
+        } catch (_: Exception) {}
+    }
+
+    private fun restoreBeep() {
+        try {
+            audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, savedNotificationVolume, 0)
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, savedMusicVolume, 0)
+        } catch (_: Exception) {}
+    }
+
+    // ── Recognition listener ────────────────────────────────────────
 
     private fun createListener(): RecognitionListener {
         return object : RecognitionListener {
@@ -118,7 +150,7 @@ class WakeWordManager(
                 when (error) {
                     SpeechRecognizer.ERROR_NO_MATCH,
                     SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> {
-                        // Normal — user wasn't speaking. Restart quickly.
+                        // Normal — user wasn't speaking. Restart.
                         scheduleRestart(RESTART_DELAY_MS)
                     }
                     SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> {
@@ -142,9 +174,11 @@ class WakeWordManager(
         for (variant in matchVariants) {
             if (normalized.startsWith(variant)) {
                 val remaining = normalized.removePrefix(variant).trim()
-                // Wake word detected — stop listening and notify
+                // Wake word detected — stop listening, restore audio, notify
                 isActive = false
+                mainHandler.removeCallbacksAndMessages(null)
                 destroyRecognizer()
+                restoreBeep()
                 mainHandler.post { onWakeWordDetected(remaining) }
                 return true
             }
