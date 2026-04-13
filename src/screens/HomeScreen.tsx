@@ -299,12 +299,14 @@ export function HomeScreen(): React.JSX.Element {
     onResult: handleVoiceResult,
   });
 
-  const handleMicPress = useCallback(() => {
+  const handleMicPress = useCallback(async () => {
     if (voiceStatus === 'listening') {
       stopListening();
     } else if (voiceStatus === 'speaking') {
       stopSpeaking();
     } else if (voiceStatus === 'idle') {
+      // Ensure wake word is paused and mic is released before we start
+      try { await BackgroundServiceBridge?.pauseWakeWord(); } catch (_) {}
       setIsOverlayVisible(true);
       startListening();
     }
