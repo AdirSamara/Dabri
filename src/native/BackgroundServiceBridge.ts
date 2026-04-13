@@ -20,6 +20,8 @@ interface BackgroundServiceModuleInterface {
   notifyCommandResult(success: boolean, message: string): Promise<boolean>;
   setWakeWordConfig(enabled: boolean, phrase: string): Promise<boolean>;
   getWakeWordConfig(): Promise<{ enabled: boolean; phrase: string }>;
+  pauseWakeWord(): Promise<boolean>;
+  resumeWakeWord(): Promise<boolean>;
 }
 
 const BackgroundServiceBridge: BackgroundServiceModuleInterface | null =

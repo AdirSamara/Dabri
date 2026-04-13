@@ -28,6 +28,8 @@ class DabriFloatingService : Service() {
         const val ACTION_STOP = "com.dabri.SERVICE_STOP"
         const val ACTION_COMMAND_RESULT = "com.dabri.SERVICE_COMMAND_RESULT"
         const val ACTION_WAKE_WORD_CONFIG = "com.dabri.SERVICE_WAKE_WORD_CONFIG"
+        const val ACTION_PAUSE_WAKE_WORD = "com.dabri.SERVICE_PAUSE_WAKE_WORD"
+        const val ACTION_RESUME_WAKE_WORD = "com.dabri.SERVICE_RESUME_WAKE_WORD"
         const val EXTRA_RESULT_SUCCESS = "result_success"
         const val EXTRA_RESULT_MESSAGE = "result_message"
 
@@ -88,6 +90,8 @@ class DabriFloatingService : Service() {
             ACTION_STOP -> handleStop()
             ACTION_COMMAND_RESULT -> handleCommandResult(intent)
             ACTION_WAKE_WORD_CONFIG -> handleWakeWordConfig(intent)
+            ACTION_PAUSE_WAKE_WORD -> wakeWordManager?.stop()
+            ACTION_RESUME_WAKE_WORD -> startWakeWordIfEnabled()
             else -> handleStart()
         }
         return START_STICKY

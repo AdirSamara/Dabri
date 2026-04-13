@@ -110,12 +110,21 @@ class VoiceOverlayManager(
             setOnClickListener { onClose() }
         }
 
-        // "פתח דברי" as a small text link (top-right in RTL = visual top-left)
+        // "פתח דברי" as a small pill button
         val openLink = TextView(context).apply {
-            text = "פתח דברי ←"
+            text = "  פתח דברי  "
             setTextColor(accentColor)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
             textDirection = View.TEXT_DIRECTION_RTL
+            val pillBg = GradientDrawable().apply {
+                setColor(Color.parseColor("#2196F318"))
+                cornerRadius = dpToPx(14f)
+                setStroke(dpToPx(1f).toInt(), Color.parseColor("#2196F350"))
+            }
+            background = pillBg
+            setPadding(dpToPx(12f).toInt(), dpToPx(5f).toInt(), dpToPx(12f).toInt(), dpToPx(5f).toInt())
             layoutParams = FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT

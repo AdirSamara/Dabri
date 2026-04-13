@@ -459,13 +459,28 @@ export function HomeScreen(): React.JSX.Element {
       }
     }
 
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') {
+    // Pause wake word when app is active (avoids mic conflict),
+    // resume when going to background
+    if (BackgroundServiceBridge) {
+      BackgroundServiceBridge.pauseWakeWord().catch(() => {});
+    }
+
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
         checkAndListen();
+        // Pause wake word so main app can use the mic
+        BackgroundServiceBridge?.pauseWakeWord().catch(() => {});
+      } else if (nextState === 'background') {
+        // Resume wake word when app goes to background
+        BackgroundServiceBridge?.resumeWakeWord().catch(() => {});
       }
     });
 
-    return () => subscription.remove();
+    return () => {
+      subscription.remove();
+      // Resume wake word when HomeScreen unmounts
+      BackgroundServiceBridge?.resumeWakeWord().catch(() => {});
+    };
   }, []);
 
   const hasConversations = conversations.length > 0;
