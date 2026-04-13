@@ -1,8 +1,7 @@
 import { registerHandler } from './actionDispatcher';
 import type { ActionResult } from './actionDispatcher';
 import type { ParsedIntent, Contact } from '../types';
-import { normalizeHebrew } from '../utils/hebrewUtils';
-import { resolveAppName, getCategoryKey, AppMatchTier } from './appNameResolver';
+import { resolveAppName } from './appNameResolver';
 import AppLauncherBridge from '../native/AppLauncherBridge';
 
 async function handleOpenApp(intent: ParsedIntent): Promise<ActionResult> {
@@ -17,23 +16,22 @@ async function handleOpenApp(intent: ParsedIntent): Promise<ActionResult> {
 
   const result = await resolveAppName(appName);
 
+  // Handle generic categories (camera, settings, browser, etc.)
+  if (result.category) {
+    try {
+      await AppLauncherBridge.launchByCategory(result.category);
+      return { success: true, message: `פותח ${appName}` };
+    } catch {
+      return { success: false, message: `לא הצלחתי לפתוח ${appName}` };
+    }
+  }
+
   // No match at all
   if (result.matches.length === 0) {
     return { success: false, message: `לא מצאתי אפליקציה בשם ${appName}` };
   }
 
   const best = result.matches[0];
-
-  // Handle generic categories (camera, settings, browser, etc.)
-  const categoryKey = getCategoryKey(best.packageName);
-  if (categoryKey) {
-    try {
-      await AppLauncherBridge.launchByCategory(categoryKey);
-      return { success: true, message: `פותח ${appName}` };
-    } catch {
-      return { success: false, message: `לא הצלחתי לפתוח ${appName}` };
-    }
-  }
 
   // Single match — launch directly
   if (result.matches.length === 1) {

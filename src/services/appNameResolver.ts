@@ -19,6 +19,7 @@ export interface AppMatch {
 export interface AppResolveResult {
   matches: AppMatch[];
   bestTier: AppMatchTier;
+  category: string | null; // non-null = launch via launchByCategory()
 }
 
 // ── Installed apps cache ─────────────────────────────────────────────
@@ -27,6 +28,8 @@ interface InstalledApp {
   packageName: string;
   label: string;
   normalizedLabel: string;
+  /** Consonant skeleton of the English label for phonetic matching */
+  skeleton: string;
 }
 
 let installedAppsCache: InstalledApp[] = [];
@@ -43,6 +46,7 @@ export async function loadInstalledApps(): Promise<void> {
       packageName: a.packageName,
       label: a.label,
       normalizedLabel: normalizeHebrew(a.label),
+      skeleton: consonantSkeleton(a.label),
     }));
     cacheLoaded = true;
   } catch {
@@ -55,198 +59,104 @@ export function invalidateAppCache(): void {
   cacheLoaded = false;
 }
 
-// ── Hebrew App Aliases ───────────────────────────────────────────────
-// Maps normalized Hebrew name -> Android package name.
-// Entries starting with __CATEGORY_ are generic-category sentinels
-// handled by launchByCategory() in the native module.
+// ── Category Map (system intents, NOT specific apps) ─────────────────
 
-const HEBREW_APP_ALIASES: Record<string, string> = {
-  // ── Social ──
-  'וואטסאפ':        'com.whatsapp',
-  'ווצאפ':          'com.whatsapp',
-  'ווטסאפ':         'com.whatsapp',
-  'וואצאפ':         'com.whatsapp',
-  'whatsapp':        'com.whatsapp',
-
-  'פייסבוק':        'com.facebook.katana',
-  'פיסבוק':         'com.facebook.katana',
-  'facebook':        'com.facebook.katana',
-
-  'אינסטגרם':       'com.instagram.android',
-  'אינסטה':         'com.instagram.android',
-  'instagram':       'com.instagram.android',
-
-  'טיקטוק':         'com.zhiliaoapp.musically',
-  'טיק טוק':        'com.zhiliaoapp.musically',
-  'tiktok':          'com.zhiliaoapp.musically',
-
-  'טלגרם':          'org.telegram.messenger',
-  'טלגראם':         'org.telegram.messenger',
-  'telegram':        'org.telegram.messenger',
-
-  'סנאפצט':         'com.snapchat.android',
-  'snapchat':        'com.snapchat.android',
-
-  'לינקדאין':       'com.linkedin.android',
-  'לינקד אין':      'com.linkedin.android',
-  'linkedin':        'com.linkedin.android',
-
-  'רדיט':           'com.reddit.frontpage',
-  'reddit':          'com.reddit.frontpage',
-
-  'טוויטר':         'com.twitter.android',
-  'אקס':            'com.twitter.android',
-  'twitter':         'com.twitter.android',
-
-  'פינטרסט':        'com.pinterest',
-  'pinterest':       'com.pinterest',
-
-  // ── Navigation ──
-  'וויז':           'com.waze',
-  'ווייז':          'com.waze',
-  'waze':            'com.waze',
-
-  'גוגל מפות':      'com.google.android.apps.maps',
-  'מפות':           'com.google.android.apps.maps',
-  'מפות גוגל':      'com.google.android.apps.maps',
-  'google maps':     'com.google.android.apps.maps',
-
-  'מוז':            'com.moovit.app',
-  'מובית':          'com.moovit.app',
-  'moovit':          'com.moovit.app',
-
-  // ── Communication ──
-  "ג'ימייל":        'com.google.android.gm',
-  "ג'מייל":         'com.google.android.gm',
-  'gmail':           'com.google.android.gm',
-  'מייל':           'com.google.android.gm',
-  'אימייל':         'com.google.android.gm',
-  'דואר':           'com.google.android.gm',
-
-  'אאוטלוק':        'com.microsoft.office.outlook',
-  'outlook':         'com.microsoft.office.outlook',
-
-  'זום':            'us.zoom.videomeetings',
-  'zoom':            'us.zoom.videomeetings',
-
-  'טימס':           'com.microsoft.teams',
-  'teams':           'com.microsoft.teams',
-
-  'גוגל מיט':       'com.google.android.apps.tachyon',
-  'מיט':            'com.google.android.apps.tachyon',
-  'google meet':     'com.google.android.apps.tachyon',
-
-  // ── Streaming / Media ──
-  'נטפליקס':        'com.netflix.mediaclient',
-  'netflix':         'com.netflix.mediaclient',
-
-  'יוטיוב':         'com.google.android.youtube',
-  'youtube':         'com.google.android.youtube',
-
-  'ספוטיפיי':       'com.spotify.music',
-  'ספוטיפי':        'com.spotify.music',
-  'spotify':         'com.spotify.music',
-
-  'אפל מיוזיק':     'com.apple.android.music',
-  'apple music':     'com.apple.android.music',
-
-  'דיזני פלוס':     'com.disney.disneyplus',
-  'דיזני+':         'com.disney.disneyplus',
-  'disney+':         'com.disney.disneyplus',
-
-  // ── Shopping ──
-  'עלי אקספרס':     'com.alibaba.aliexpresshd',
-  'עלי':            'com.alibaba.aliexpresshd',
-  'aliexpress':      'com.alibaba.aliexpresshd',
-
-  'אמזון':          'com.amazon.mShop.android.shopping',
-  'amazon':          'com.amazon.mShop.android.shopping',
-
-  'שיין':           'com.zzkko',
-  'shein':           'com.zzkko',
-
-  // ── Israeli Banking & Finance ──
-  'ביט':            'il.co.isracard.bit',
-  'bit':             'il.co.isracard.bit',
-
-  'פייבוקס':        'com.payboxapp',
-  'paybox':          'com.payboxapp',
-
-  'כאל':            'com.cal.calapp',
-  'cal':             'com.cal.calapp',
-
-  'מקס':            'com.ideomobile.leumicard',
-  'max':             'com.ideomobile.leumicard',
-
-  'לאומי':          'com.leumi.leumiwallet',
-  'בנק לאומי':      'com.leumi.leumiwallet',
-
-  'פועלים':         'com.ideomobile.hapoalim',
-  'בנק הפועלים':    'com.ideomobile.hapoalim',
-  'הפועלים':        'com.ideomobile.hapoalim',
-
-  'דיסקונט':        'com.ideomobile.discount',
-  'בנק דיסקונט':    'com.ideomobile.discount',
-
-  'פפר':            'com.pepper.app',
-  'pepper':          'com.pepper.app',
-
-  // ── Israeli Grocery / Retail / Ride ──
-  'סופר פארם':      'com.super_pharm.customers',
-  'סופר-פארם':      'com.super_pharm.customers',
-
-  'שופרסל':         'com.shufersal.android',
-  'רמי לוי':        'com.ramilevi.app',
-
-  'גט':             'com.gettaxi.android',
-  'גט טקסי':        'com.gettaxi.android',
-  'gett':            'com.gettaxi.android',
-
-  // ── System / Generic Categories ──
-  'מצלמה':          '__CATEGORY_CAMERA__',
-  'צילום':          '__CATEGORY_CAMERA__',
-
-  'הגדרות':         '__CATEGORY_SETTINGS__',
-
-  'דפדפן':          '__CATEGORY_BROWSER__',
-  'אינטרנט':        '__CATEGORY_BROWSER__',
-
-  'חנות':           '__CATEGORY_PLAY_STORE__',
-  'חנות אפליקציות':  '__CATEGORY_PLAY_STORE__',
-  'פליי סטור':      '__CATEGORY_PLAY_STORE__',
-  'גוגל פליי':      '__CATEGORY_PLAY_STORE__',
-  'play store':      '__CATEGORY_PLAY_STORE__',
-
-  'גלריה':          '__CATEGORY_GALLERY__',
-  'תמונות':         '__CATEGORY_GALLERY__',
-
-  'מחשבון':         '__CATEGORY_CALCULATOR__',
-
-  'שעון':           '__CATEGORY_CLOCK__',
-  'שעון מעורר':     '__CATEGORY_CLOCK__',
-  'טיימר':          '__CATEGORY_CLOCK__',
-
-  'לוח שנה':        '__CATEGORY_CALENDAR__',
-  'יומן':           '__CATEGORY_CALENDAR__',
-
-  // ── Samsung apps ──
-  'אינטרנט סמסונג':  'com.sec.android.app.sbrowser',
-  'סמסונג אינטרנט':  'com.sec.android.app.sbrowser',
-  'פתקים':          'com.samsung.android.app.notes',
-  'סמסונג פתקים':   'com.samsung.android.app.notes',
+const CATEGORY_MAP: Record<string, string> = {
+  'מצלמה':            'camera',
+  'צילום':            'camera',
+  'הגדרות':           'settings',
+  'דפדפן':            'browser',
+  'חנות':             'playstore',
+  'חנות אפליקציות':    'playstore',
+  'פליי סטור':        'playstore',
+  'גוגל פליי':        'playstore',
+  'play store':        'playstore',
+  'מחשבון':           'calculator',
+  'לוח שנה':          'calendar',
+  'יומן':             'calendar',
 };
 
-// Maps __CATEGORY_*__ sentinels to native launchByCategory() keys
-const CATEGORY_TO_NATIVE: Record<string, string> = {
-  '__CATEGORY_CAMERA__':      'camera',
-  '__CATEGORY_SETTINGS__':    'settings',
-  '__CATEGORY_BROWSER__':     'browser',
-  '__CATEGORY_PLAY_STORE__':  'playstore',
-  '__CATEGORY_GALLERY__':     'camera', // fallback — gallery varies by OEM
-  '__CATEGORY_CALCULATOR__':  'calculator',
-  '__CATEGORY_CLOCK__':       'calculator', // fallback — use same approach
-  '__CATEGORY_CALENDAR__':    'calendar',
+// ── Fallback Map (Hebrew words → English search term) ────────────────
+// Only for native Hebrew words where phonetic transliteration can't work
+// because the English label is a completely different word.
+// NOT package names — these are search terms matched against installed labels.
+
+const FALLBACK_MAP: Record<string, string> = {
+  'שעון':        'clock',
+  'שעון מעורר':  'alarm',
+  'טיימר':       'timer',
+  'פנס':         'flashlight',
+  'גלריה':       'gallery',
+  'תמונות':      'photos',
+  'פתקים':       'notes',
+  'דואר':        'mail',
+  'מייל':        'mail',
+  'אימייל':      'email',
+  'מפות':        'maps',
+  'אינטרנט':     'internet',
+  'אקס':         'x',
 };
+
+// ── Hebrew → Latin Phonetic Transliteration ──────────────────────────
+
+/** Multi-character Hebrew patterns processed first (order matters). */
+const DIGRAPHS: [string, string][] = [
+  ['וו', 'w'],
+  ['יי', 'i'],
+  ['או', 'o'],
+  ['אי', 'i'],
+  ["ג'", 'j'],
+  ["צ'", 'ch'],
+  ["ז'", 'zh'],
+];
+
+/** Single Hebrew character → Latin sound. */
+const CHAR_MAP: Record<string, string> = {
+  'א': 'a', 'ב': 'b', 'ג': 'g', 'ד': 'd', 'ה': 'h',
+  'ו': 'o', 'ז': 'z', 'ח': 'h', 'ט': 't', 'י': 'i',
+  'כ': 'k', 'ך': 'k', 'ל': 'l', 'מ': 'm', 'ם': 'm',
+  'נ': 'n', 'ן': 'n', 'ס': 's', 'ע': 'a', 'פ': 'p',
+  'ף': 'f', 'צ': 'ts', 'ץ': 'ts', 'ק': 'k', 'ר': 'r',
+  'ש': 'sh', 'ת': 't',
+};
+
+/**
+ * Convert Hebrew text to approximate Latin phonetic representation.
+ * Processes digraphs first, then single characters.
+ * Non-Hebrew characters pass through unchanged (handles mixed text).
+ */
+function hebrewToLatin(text: string): string {
+  let result = text.toLowerCase().trim();
+
+  // Process digraphs first
+  for (const [heb, lat] of DIGRAPHS) {
+    result = result.split(heb).join(lat);
+  }
+
+  // Process remaining single characters
+  let output = '';
+  for (const ch of result) {
+    output += CHAR_MAP[ch] ?? ch;
+  }
+
+  return output;
+}
+
+/**
+ * Extract consonant skeleton from text (strip vowels + normalize).
+ * Used to compare Hebrew transliterations against English labels.
+ */
+function consonantSkeleton(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z]/g, '')     // keep only Latin letters
+    .replace(/[aeiou]/g, '');   // strip vowels
+}
+
+/** Consonant skeleton of a Hebrew word via transliteration. */
+function hebrewSkeleton(hebrewText: string): string {
+  return consonantSkeleton(hebrewToLatin(hebrewText));
+}
 
 // ── Matching ─────────────────────────────────────────────────────────
 
@@ -257,29 +167,24 @@ function fuzzyThreshold(len: number): number {
   return 3;
 }
 
+/** Score an app against a direct (non-transliterated) query. */
 function scoreOneApp(query: string, app: InstalledApp): AppMatchTier {
   const label = app.normalizedLabel;
 
-  // Exact
   if (label === query) { return AppMatchTier.EXACT; }
 
-  // Word exact — any word in label matches query
   const words = label.split(/\s+/);
   for (const w of words) {
     if (w === query) { return AppMatchTier.EXACT; }
   }
 
-  // Prefix — label starts with query
   if (label.startsWith(query)) { return AppMatchTier.PREFIX; }
-  // Word prefix
   for (const w of words) {
     if (w.startsWith(query) && query.length >= 2) { return AppMatchTier.PREFIX; }
   }
 
-  // Contains — query is a substring of label
   if (label.includes(query) && query.length >= 3) { return AppMatchTier.PREFIX; }
 
-  // Fuzzy
   const threshold = fuzzyThreshold(query.length);
   if (threshold > 0 && levenshteinDistance(query, label) <= threshold) {
     return AppMatchTier.FUZZY;
@@ -293,46 +198,15 @@ function scoreOneApp(query: string, app: InstalledApp): AppMatchTier {
   return AppMatchTier.NONE;
 }
 
-/**
- * Resolve a Hebrew app name to one or more candidate packages.
- *
- * Strategy:
- *  1. Exact alias match (HEBREW_APP_ALIASES)
- *  2. Retry with leading ה restored (in case cleanAppName stripped it)
- *  3. Score against installed app labels (EXACT > PREFIX > FUZZY)
- *  4. Return up to 3 matches at the best tier.
- */
-export async function resolveAppName(rawName: string): Promise<AppResolveResult> {
-  if (!cacheLoaded) {
-    await loadInstalledApps();
-  }
-
-  const normalized = normalizeHebrew(rawName);
-
-  // ── Step 1: Check hardcoded aliases ──
-  const aliasPackage = HEBREW_APP_ALIASES[normalized];
-  if (aliasPackage) {
-    return {
-      matches: [{ packageName: aliasPackage, label: rawName, tier: AppMatchTier.EXACT }],
-      bestTier: AppMatchTier.EXACT,
-    };
-  }
-
-  // ── Step 1b: Retry with leading ה restored ──
-  const withHe = 'ה' + normalized;
-  const aliasWithHe = HEBREW_APP_ALIASES[withHe];
-  if (aliasWithHe) {
-    return {
-      matches: [{ packageName: aliasWithHe, label: rawName, tier: AppMatchTier.EXACT }],
-      bestTier: AppMatchTier.EXACT,
-    };
-  }
-
-  // ── Step 2: Score against installed app labels ──
+/** Collect best-tier matches from a scoring pass. Returns up to 3. */
+function collectBestMatches(
+  apps: InstalledApp[],
+  scorer: (app: InstalledApp) => AppMatchTier,
+): AppMatch[] {
   const byTier = new Map<AppMatchTier, AppMatch[]>();
 
-  for (const app of installedAppsCache) {
-    const tier = scoreOneApp(normalized, app);
+  for (const app of apps) {
+    const tier = scorer(app);
     if (tier > AppMatchTier.NONE) {
       if (!byTier.has(tier)) { byTier.set(tier, []); }
       byTier.get(tier)!.push({
@@ -346,28 +220,118 @@ export async function resolveAppName(rawName: string): Promise<AppResolveResult>
   for (const tier of [AppMatchTier.EXACT, AppMatchTier.PREFIX, AppMatchTier.FUZZY]) {
     const matches = byTier.get(tier);
     if (matches && matches.length > 0) {
-      return { matches: matches.slice(0, 3), bestTier: tier };
+      return matches.slice(0, 3);
     }
   }
-
-  // ── Step 3: Retry with ה against installed apps ──
-  for (const app of installedAppsCache) {
-    const tier = scoreOneApp(withHe, app);
-    if (tier >= AppMatchTier.PREFIX) {
-      return {
-        matches: [{ packageName: app.packageName, label: app.label, tier }],
-        bestTier: tier,
-      };
-    }
-  }
-
-  return { matches: [], bestTier: AppMatchTier.NONE };
+  return [];
 }
 
 /**
- * Check if a resolved package name is a generic category sentinel.
- * Returns the native category key (e.g. "camera") or null.
+ * Score an app using phonetic consonant skeleton comparison.
+ * Compares the Hebrew query's skeleton against the app label's skeleton.
  */
-export function getCategoryKey(packageName: string): string | null {
-  return CATEGORY_TO_NATIVE[packageName] ?? null;
+function scorePhonetic(querySkeleton: string, app: InstalledApp): AppMatchTier {
+  const labelSkeleton = app.skeleton;
+
+  if (!querySkeleton || !labelSkeleton) { return AppMatchTier.NONE; }
+
+  if (labelSkeleton === querySkeleton) { return AppMatchTier.EXACT; }
+
+  // Check if one contains the other (for partial matches)
+  if (labelSkeleton.includes(querySkeleton) && querySkeleton.length >= 3) {
+    return AppMatchTier.PREFIX;
+  }
+  if (querySkeleton.includes(labelSkeleton) && labelSkeleton.length >= 3) {
+    return AppMatchTier.PREFIX;
+  }
+
+  // Fuzzy on skeletons — use generous threshold since skeletons are short
+  const threshold = fuzzyThreshold(querySkeleton.length);
+  if (threshold > 0 && levenshteinDistance(querySkeleton, labelSkeleton) <= threshold) {
+    return AppMatchTier.FUZZY;
+  }
+
+  // Also try skeleton-per-word (for multi-word labels like "Google Maps")
+  const labelWords = app.normalizedLabel.split(/\s+/);
+  for (const w of labelWords) {
+    const wordSkeleton = consonantSkeleton(w);
+    if (wordSkeleton === querySkeleton) { return AppMatchTier.EXACT; }
+    if (threshold > 0 && levenshteinDistance(querySkeleton, wordSkeleton) <= threshold) {
+      return AppMatchTier.FUZZY;
+    }
+  }
+
+  return AppMatchTier.NONE;
+}
+
+// ── Main Resolution ──────────────────────────────────────────────────
+
+/**
+ * Resolve a Hebrew app name to installed app(s) or a system category.
+ *
+ * Strategy (in order):
+ *  1. Category map → system intent (camera, settings, etc.)
+ *  2. Direct label match (Hebrew or English query vs installed labels)
+ *  3. Fallback map → translate Hebrew word to English → search labels
+ *  4. Phonetic transliteration → consonant skeleton match
+ *  5. Retry 2-4 with leading ה restored
+ *  6. No match → empty
+ */
+export async function resolveAppName(rawName: string): Promise<AppResolveResult> {
+  if (!cacheLoaded) {
+    await loadInstalledApps();
+  }
+
+  const normalized = normalizeHebrew(rawName);
+  const empty: AppResolveResult = { matches: [], bestTier: AppMatchTier.NONE, category: null };
+
+  // ── Step 1: Category map (system intents) ──
+  const category = CATEGORY_MAP[normalized];
+  if (category) {
+    return {
+      matches: [],
+      bestTier: AppMatchTier.EXACT,
+      category,
+    };
+  }
+
+  // Try resolving with the given name, then retry with ה restored
+  const candidates = [normalized, 'ה' + normalized];
+
+  for (const query of candidates) {
+    // ── Step 2: Direct label match ──
+    const directMatches = collectBestMatches(
+      installedAppsCache,
+      (app) => scoreOneApp(query, app),
+    );
+    if (directMatches.length > 0) {
+      return { matches: directMatches, bestTier: directMatches[0].tier, category: null };
+    }
+
+    // ── Step 3: Fallback map (Hebrew words → English search term) ──
+    const fallback = FALLBACK_MAP[query];
+    if (fallback) {
+      const fallbackMatches = collectBestMatches(
+        installedAppsCache,
+        (app) => scoreOneApp(fallback, app),
+      );
+      if (fallbackMatches.length > 0) {
+        return { matches: fallbackMatches, bestTier: fallbackMatches[0].tier, category: null };
+      }
+    }
+
+    // ── Step 4: Phonetic transliteration match ──
+    const skeleton = hebrewSkeleton(query);
+    if (skeleton.length >= 2) {
+      const phoneticMatches = collectBestMatches(
+        installedAppsCache,
+        (app) => scorePhonetic(skeleton, app),
+      );
+      if (phoneticMatches.length > 0) {
+        return { matches: phoneticMatches, bestTier: phoneticMatches[0].tier, category: null };
+      }
+    }
+  }
+
+  return empty;
 }
