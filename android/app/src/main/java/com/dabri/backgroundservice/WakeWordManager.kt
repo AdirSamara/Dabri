@@ -41,6 +41,10 @@ class WakeWordManager(
         matchVariants = getMatchVariants(phrase)
         isActive = true
 
+        // Hold audio focus for the entire wake word session to suppress ALL beeps.
+        // Released only on stop() or wake word detection.
+        claimAudioFocus()
+
         mainHandler.post {
             try {
                 recognizer = SpeechRecognizer.createSpeechRecognizer(context)
@@ -55,23 +59,20 @@ class WakeWordManager(
     fun stop() {
         isActive = false
         mainHandler.removeCallbacksAndMessages(null)
-        abandonAudioFocus()
         try {
             recognizer?.stopListening()
             recognizer?.cancel()
             recognizer?.destroy()
         } catch (_: Exception) {}
         recognizer = null
+        // Release audio focus AFTER destroying recognizer
+        abandonAudioFocus()
     }
 
     fun isRunning(): Boolean = isActive
 
     private fun beginListening() {
         if (!isActive || recognizer == null) return
-
-        // Claim audio focus briefly to suppress the SpeechRecognizer beep.
-        // Released in onReadyForSpeech once the recognizer is actively listening.
-        claimAudioFocus()
 
         try {
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -82,7 +83,6 @@ class WakeWordManager(
             }
             recognizer?.startListening(intent)
         } catch (_: Exception) {
-            abandonAudioFocus()
             scheduleRelisten(ERROR_RELISTEN_DELAY_MS)
         }
     }
@@ -117,10 +117,7 @@ class WakeWordManager(
 
     private fun createListener(): RecognitionListener {
         return object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) {
-                // Recognizer is now listening — release audio focus so TTS works
-                abandonAudioFocus()
-            }
+            override fun onReadyForSpeech(params: Bundle?) {}
             override fun onBeginningOfSpeech() {}
             override fun onRmsChanged(rmsdB: Float) {}
             override fun onBufferReceived(buffer: ByteArray?) {}
@@ -146,7 +143,6 @@ class WakeWordManager(
             }
 
             override fun onError(error: Int) {
-                abandonAudioFocus()
                 when (error) {
                     SpeechRecognizer.ERROR_NO_MATCH,
                     SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> {
