@@ -77,7 +77,7 @@ export function SettingsScreen(): React.JSX.Element {
   }), [theme]);
 
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
-  const { geminiApiKey, ttsSpeed, reminders, silenceTimeout, preferredNavApp } = useDabriStore();
+  const { geminiApiKey, ttsSpeed, reminders, silenceTimeout, preferredNavApp, backgroundServiceState } = useDabriStore();
   const [isDefaultAssistant, setIsDefaultAssistant] = useState(false);
 
   const checkAssistantStatus = async () => {
@@ -105,6 +105,12 @@ export function SettingsScreen(): React.JSX.Element {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <SettingsRow
+        title="שירות רקע"
+        subtitle={backgroundServiceState !== 'stopped' ? 'פעיל' : 'כבוי'}
+        dotColor={backgroundServiceState !== 'stopped' ? '#4CAF50' : '#F44336'}
+        onPress={() => navigation.navigate('BackgroundServiceSettings')}
+      />
       <SettingsRow
         title="עוזרת ברירת מחדל"
         subtitle={isDefaultAssistant ? 'פעיל' : 'לא פעיל'}

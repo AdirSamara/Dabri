@@ -65,6 +65,14 @@ export interface SmsMessage {
 
 export type VoiceStatus = 'idle' | 'listening' | 'processing' | 'speaking';
 
+export type BackgroundServiceState =
+  | 'stopped'
+  | 'running'
+  | 'paused'
+  | 'listening'
+  | 'processing'
+  | 'speaking';
+
 export interface PendingDisambiguation {
   conversationId: string;
   intent: ParsedIntent;

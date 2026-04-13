@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   VoiceStatus,
+  BackgroundServiceState,
   ConversationEntry,
   NotificationItem,
   Reminder,
@@ -39,6 +40,10 @@ interface DabriState {
   homeAddress: string;
   workAddress: string;
 
+  // Background service
+  backgroundServiceEnabled: boolean; // persisted
+  backgroundServiceState: BackgroundServiceState; // session-only
+
   // Actions
   setVoiceStatus: (status: VoiceStatus) => void;
   setLastTranscript: (transcript: string) => void;
@@ -61,6 +66,8 @@ interface DabriState {
   setPreferredNavApp: (app: 'waze' | 'google_maps') => void;
   setHomeAddress: (address: string) => void;
   setWorkAddress: (address: string) => void;
+  setBackgroundServiceEnabled: (enabled: boolean) => void;
+  setBackgroundServiceState: (state: BackgroundServiceState) => void;
 }
 
 export const useDabriStore = create<DabriState>()(
@@ -81,6 +88,8 @@ export const useDabriStore = create<DabriState>()(
       preferredNavApp: 'waze',
       homeAddress: '',
       workAddress: '',
+      backgroundServiceEnabled: false,
+      backgroundServiceState: 'stopped',
 
       // Actions
       setVoiceStatus: (status) => set({ voiceStatus: status }),
@@ -168,6 +177,8 @@ export const useDabriStore = create<DabriState>()(
       setPreferredNavApp: (app) => set({ preferredNavApp: app }),
       setHomeAddress: (address) => set({ homeAddress: address }),
       setWorkAddress: (address) => set({ workAddress: address }),
+      setBackgroundServiceEnabled: (enabled) => set({ backgroundServiceEnabled: enabled }),
+      setBackgroundServiceState: (state) => set({ backgroundServiceState: state }),
     }),
     {
       name: 'dabri-store',
@@ -182,6 +193,7 @@ export const useDabriStore = create<DabriState>()(
         preferredNavApp: state.preferredNavApp,
         homeAddress: state.homeAddress,
         workAddress: state.workAddress,
+        backgroundServiceEnabled: state.backgroundServiceEnabled,
       }),
       onRehydrateStorage: () => (state, error) => {
         if (error) {
