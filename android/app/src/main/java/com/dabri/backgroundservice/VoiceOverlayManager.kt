@@ -33,18 +33,17 @@ class VoiceOverlayManager(
     private var transcriptText: TextView? = null
     private var dotPulseAnimator: ObjectAnimator? = null
 
-    // Theme colors — resolved at show() time
     private var cardBg = 0
     private var textColor = 0
     private var textSecondaryColor = 0
     private var transcriptBg = 0
     private var transcriptTextColor = 0
-    private var closeBtnBg = 0
+    private var subtleBg = 0
 
-    // Status colors (match RN VoiceOverlay.tsx)
     private val colorListening = Color.parseColor("#E74C3C")
     private val colorProcessing = Color.parseColor("#3498DB")
     private val colorSpeaking = Color.parseColor("#4CAF50")
+    private val accentColor = Color.parseColor("#2196F3")
 
     fun show() {
         if (overlayView != null) return
@@ -53,83 +52,97 @@ class VoiceOverlayManager(
         val displayMetrics = Resources.getSystem().displayMetrics
         val screenWidth = displayMetrics.widthPixels
 
-        // Root: full-screen transparent backdrop
+        // Root: full-screen backdrop
         val root = FrameLayout(context).apply {
             setBackgroundColor(Color.parseColor("#99000000"))
             setOnTouchListener { _, event ->
-                if (event.action == MotionEvent.ACTION_DOWN) {
-                    onClose()
-                    true
-                } else false
+                if (event.action == MotionEvent.ACTION_DOWN) { onClose(); true } else false
             }
         }
 
-        // Card: centered panel
-        val cardWidth = (screenWidth * 0.85).toInt()
+        // Card
+        val cardWidth = (screenWidth * 0.88).toInt()
         val card = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             layoutDirection = View.LAYOUT_DIRECTION_RTL
             val bg = GradientDrawable().apply {
                 setColor(cardBg)
-                cornerRadius = dpToPx(24f)
+                cornerRadius = dpToPx(20f)
             }
             background = bg
-            elevation = dpToPx(16f)
-            setPadding(dpToPx(24f).toInt(), dpToPx(24f).toInt(), dpToPx(24f).toInt(), dpToPx(28f).toInt())
-            setOnTouchListener { _, _ -> true } // consume touches
+            elevation = dpToPx(12f)
+            setPadding(dpToPx(18f).toInt(), dpToPx(14f).toInt(), dpToPx(18f).toInt(), dpToPx(16f).toInt())
+            setOnTouchListener { _, _ -> true }
         }
-
         val cardParams = FrameLayout.LayoutParams(cardWidth, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             gravity = Gravity.CENTER
         }
 
-        // Close button (top-end)
-        val closeRow = FrameLayout(context).apply {
+        // ── Top bar: [open app link]  ···  [✕ close] ──
+        val topBar = FrameLayout(context).apply {
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
+                dpToPx(28f).toInt()
             )
         }
+
+        // Close button (top-left in RTL = visual top-right)
         val closeBtn = FrameLayout(context).apply {
-            val size = dpToPx(32f).toInt()
+            val size = dpToPx(28f).toInt()
             layoutParams = FrameLayout.LayoutParams(size, size).apply {
-                gravity = Gravity.START // RTL layout, so START = visual right
+                gravity = Gravity.START or Gravity.CENTER_VERTICAL
             }
             val bg = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(closeBtnBg)
+                setColor(subtleBg)
             }
             background = bg
-            val xLabel = TextView(context).apply {
+            addView(TextView(context).apply {
                 text = "✕"
                 setTextColor(textSecondaryColor)
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
                 gravity = Gravity.CENTER
                 layoutParams = FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT
                 )
-            }
-            addView(xLabel)
+            })
             setOnClickListener { onClose() }
         }
-        closeRow.addView(closeBtn)
-        card.addView(closeRow)
 
-        // Status row (dot + text) — RTL layout
+        // "פתח דברי" as a small text link (top-right in RTL = visual top-left)
+        val openLink = TextView(context).apply {
+            text = "פתח דברי ←"
+            setTextColor(accentColor)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            textDirection = View.TEXT_DIRECTION_RTL
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.END or Gravity.CENTER_VERTICAL
+            }
+            setOnClickListener { onOpenApp() }
+        }
+
+        topBar.addView(closeBtn)
+        topBar.addView(openLink)
+        card.addView(topBar)
+
+        // ── Status row: dot + text ──
         val statusRow = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = dpToPx(16f).toInt() }
+            ).apply { topMargin = dpToPx(14f).toInt() }
         }
 
         val sText = TextView(context).apply {
             text = "מקשיב לך..."
             setTextColor(colorListening)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             textDirection = View.TEXT_DIRECTION_RTL
             textAlignment = View.TEXT_ALIGNMENT_CENTER
@@ -137,9 +150,9 @@ class VoiceOverlayManager(
         statusText = sText
 
         val dot = View(context).apply {
-            val dotSize = dpToPx(10f).toInt()
+            val dotSize = dpToPx(8f).toInt()
             layoutParams = LinearLayout.LayoutParams(dotSize, dotSize).apply {
-                marginStart = dpToPx(10f).toInt()
+                marginStart = dpToPx(8f).toInt()
                 gravity = Gravity.CENTER_VERTICAL
             }
             val shape = GradientDrawable().apply {
@@ -154,22 +167,20 @@ class VoiceOverlayManager(
         statusRow.addView(dot)
         card.addView(statusRow)
 
-        // Transcript area with background
+        // ── Transcript area ──
         val transcriptWrapper = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             val bg = GradientDrawable().apply {
                 setColor(transcriptBg)
-                cornerRadius = dpToPx(16f)
+                cornerRadius = dpToPx(12f)
             }
             background = bg
-            setPadding(dpToPx(16f).toInt(), dpToPx(16f).toInt(), dpToPx(16f).toInt(), dpToPx(16f).toInt())
+            setPadding(dpToPx(14f).toInt(), dpToPx(12f).toInt(), dpToPx(14f).toInt(), dpToPx(12f).toInt())
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply {
-                topMargin = dpToPx(16f).toInt()
-            }
-            minimumHeight = dpToPx(80f).toInt()
+            ).apply { topMargin = dpToPx(12f).toInt() }
+            minimumHeight = dpToPx(56f).toInt()
         }
 
         val scroll = ScrollView(context).apply {
@@ -183,46 +194,21 @@ class VoiceOverlayManager(
         val tText = TextView(context).apply {
             text = "התחל לדבר..."
             setTextColor(textSecondaryColor)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
             textDirection = View.TEXT_DIRECTION_RTL
             textAlignment = View.TEXT_ALIGNMENT_CENTER
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
             )
-            maxLines = 6
+            maxLines = 5
             ellipsize = TextUtils.TruncateAt.END
-            setLineSpacing(dpToPx(4f), 1f)
+            setLineSpacing(dpToPx(3f), 1f)
         }
         transcriptText = tText
         scroll.addView(tText)
         transcriptWrapper.addView(scroll)
         card.addView(transcriptWrapper)
-
-        // "Open app" button
-        val openAppBtn = TextView(context).apply {
-            text = "פתח את דברי"
-            setTextColor(Color.parseColor("#2196F3"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            gravity = Gravity.CENTER
-            textDirection = View.TEXT_DIRECTION_RTL
-            textAlignment = View.TEXT_ALIGNMENT_CENTER
-            val btnBg = GradientDrawable().apply {
-                setColor(Color.parseColor("#2196F320"))
-                cornerRadius = dpToPx(10f)
-            }
-            background = btnBg
-            setPadding(dpToPx(12f).toInt(), dpToPx(10f).toInt(), dpToPx(12f).toInt(), dpToPx(10f).toInt())
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply {
-                topMargin = dpToPx(12f).toInt()
-            }
-            setOnClickListener { onOpenApp() }
-        }
-        card.addView(openAppBtn)
 
         root.addView(card, cardParams)
 
@@ -313,14 +299,11 @@ class VoiceOverlayManager(
     }
 
     private fun resolveTheme() {
-        // Read isDarkMode from the Zustand AsyncStorage persisted store
         val isDark = try {
             val prefs = context.getSharedPreferences("dabri-store", Context.MODE_PRIVATE)
             val json = prefs.getString("dabri-store", null)
             json?.contains("\"isDarkMode\":true") == true
-        } catch (_: Exception) {
-            false
-        }
+        } catch (_: Exception) { false }
 
         if (isDark) {
             cardBg = Color.parseColor("#1E1E1E")
@@ -328,14 +311,14 @@ class VoiceOverlayManager(
             textSecondaryColor = Color.parseColor("#999999")
             transcriptBg = Color.parseColor("#2A2A2A")
             transcriptTextColor = Color.parseColor("#E0E0E0")
-            closeBtnBg = Color.parseColor("#2A2A2A")
+            subtleBg = Color.parseColor("#2A2A2A")
         } else {
             cardBg = Color.parseColor("#FFFFFF")
             textColor = Color.parseColor("#1A1A1A")
             textSecondaryColor = Color.parseColor("#666666")
             transcriptBg = Color.parseColor("#F8F9FA")
             transcriptTextColor = Color.parseColor("#2C3E50")
-            closeBtnBg = Color.parseColor("#F0F0F0")
+            subtleBg = Color.parseColor("#F0F0F0")
         }
     }
 
