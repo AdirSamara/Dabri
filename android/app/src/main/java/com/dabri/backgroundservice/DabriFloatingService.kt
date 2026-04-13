@@ -33,6 +33,10 @@ class DabriFloatingService : Service() {
 
         private const val RECOGNIZER_RESET_DELAY_MS = 150L
         private const val LOCALE_HEBREW = "he-IL"
+
+        // Safety timeout: if JS doesn't call back with a command result
+        // within this time, reset to running and restart wake word.
+        private const val COMMAND_SAFETY_TIMEOUT_MS = 15000L
     }
 
     private var notificationManager: ServiceNotificationManager? = null
@@ -45,6 +49,7 @@ class DabriFloatingService : Service() {
     private var isPaused = false
     private var isListening = false
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var commandSafetyRunnable: Runnable? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -90,6 +95,7 @@ class DabriFloatingService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        cancelCommandSafetyTimeout()
         wakeWordManager?.stop()
         destroyRecognizer()
         voiceOverlayManager?.hide()
@@ -117,6 +123,7 @@ class DabriFloatingService : Service() {
 
     private fun handlePause() {
         isPaused = true
+        cancelCommandSafetyTimeout()
         wakeWordManager?.stop()
         destroyRecognizer()
         voiceOverlayManager?.hide()
@@ -135,6 +142,7 @@ class DabriFloatingService : Service() {
 
     private fun handleStop() {
         ServiceStateManager.setEnabled(this, false)
+        cancelCommandSafetyTimeout()
         wakeWordManager?.stop()
         destroyRecognizer()
         voiceOverlayManager?.hide()
@@ -145,6 +153,7 @@ class DabriFloatingService : Service() {
     // ── Wake word ───────────────────────────────────────────────────
 
     private fun startWakeWordIfEnabled() {
+        if (isPaused) return
         if (ServiceStateManager.isWakeWordEnabled(this)) {
             val phrase = ServiceStateManager.getWakeWordPhrase(this)
             wakeWordManager?.start(phrase)
@@ -162,25 +171,23 @@ class DabriFloatingService : Service() {
     }
 
     private fun handleWakeWordDetected(remainingText: String) {
-        // Check if mic is available (not in a call)
         val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         if (audioManager.mode == AudioManager.MODE_IN_CALL ||
             audioManager.mode == AudioManager.MODE_IN_COMMUNICATION) {
-            // In a call — restart wake word and ignore
             startWakeWordIfEnabled()
             return
         }
 
         if (remainingText.isNotBlank()) {
-            // User said wake phrase + command (e.g., "היי דברי תתקשר לרון")
-            // Process directly without opening overlay
+            // Wake phrase + command — process directly
             mainHandler.post {
                 bubbleManager?.updateState("processing")
             }
             emitState("processing")
             emitTranscript(remainingText, isFinal = true)
+            startCommandSafetyTimeout()
         } else {
-            // User said only the wake phrase — open overlay for command listening
+            // Wake phrase only — open overlay
             if (Settings.canDrawOverlays(this)) {
                 mainHandler.post {
                     voiceOverlayManager?.show()
@@ -189,8 +196,28 @@ class DabriFloatingService : Service() {
                 }
                 startListening()
                 emitState("listening")
+            } else {
+                startWakeWordIfEnabled()
             }
         }
+    }
+
+    // ── Command safety timeout ──────────────────────────────────────
+    // If JS never calls back (network failure, crash, etc.), reset after timeout.
+
+    private fun startCommandSafetyTimeout() {
+        cancelCommandSafetyTimeout()
+        commandSafetyRunnable = Runnable {
+            // JS didn't respond in time — reset to running
+            voiceOverlayManager?.hide()
+            resetToRunning()
+        }
+        mainHandler.postDelayed(commandSafetyRunnable!!, COMMAND_SAFETY_TIMEOUT_MS)
+    }
+
+    private fun cancelCommandSafetyTimeout() {
+        commandSafetyRunnable?.let { mainHandler.removeCallbacks(it) }
+        commandSafetyRunnable = null
     }
 
     // ── Bubble management ───────────────────────────────────────────
@@ -213,7 +240,6 @@ class DabriFloatingService : Service() {
             return
         }
 
-        // Stop wake word listening while handling a command
         wakeWordManager?.stop()
 
         if (Settings.canDrawOverlays(this)) {
@@ -239,6 +265,7 @@ class DabriFloatingService : Service() {
     }
 
     private fun handleOverlayClose() {
+        cancelCommandSafetyTimeout()
         destroyRecognizer()
         tts?.stop()
         voiceOverlayManager?.hide()
@@ -317,6 +344,9 @@ class DabriFloatingService : Service() {
                 emitState("processing")
                 emitTranscript(text, isFinal = true)
                 destroyRecognizer()
+
+                // Start safety timeout — if JS doesn't respond, reset
+                startCommandSafetyTimeout()
             }
 
             override fun onError(error: Int) {
@@ -346,6 +376,8 @@ class DabriFloatingService : Service() {
     // ── Command result from JS ──────────────────────────────────────
 
     fun handleCommandResult(intent: Intent) {
+        cancelCommandSafetyTimeout()
+
         val success = intent.getBooleanExtra(EXTRA_RESULT_SUCCESS, false)
         val message = intent.getStringExtra(EXTRA_RESULT_MESSAGE) ?: ""
 
@@ -392,7 +424,6 @@ class DabriFloatingService : Service() {
     private fun resetToRunning() {
         bubbleManager?.updateState("running")
         emitState("running")
-        // Restart wake word listening after command completes
         startWakeWordIfEnabled()
     }
 

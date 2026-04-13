@@ -6,6 +6,13 @@ import { dispatchAction } from './actionDispatcher';
 import BackgroundServiceBridge from '../native/BackgroundServiceBridge';
 import { generateId } from '../utils/hebrewUtils';
 
+// Timeout for command processing — if Gemini or action takes longer,
+// discard the result to prevent stale commands from executing later.
+const COMMAND_TIMEOUT_MS = 12000;
+
+// Track the latest command to discard stale ones
+let commandSequence = 0;
+
 export function setupBackgroundServiceListener(): void {
   if (!NativeModules.BackgroundServiceModule) {
     return;
@@ -30,15 +37,26 @@ export function setupBackgroundServiceListener(): void {
   emitter.addListener(
     'backgroundServiceTranscript',
     async (event: { text: string; isFinal: boolean }) => {
-      // Update transcript in store (so HomeScreen shows it when opened)
       useDabriStore.getState().setLastTranscript(event.text);
 
       if (!event.isFinal || !event.text) return;
 
-      // Run the same voice pipeline as HomeScreen
+      // Each command gets a sequence number — if a newer command arrives
+      // before this one finishes, this one is discarded.
+      const mySequence = ++commandSequence;
+
+      const isStale = () => mySequence !== commandSequence;
+
       try {
         const geminiApiKey = useDabriStore.getState().geminiApiKey;
-        const parsedIntent = await parseIntent(event.text, geminiApiKey);
+
+        // Race between parseIntent and a timeout
+        const parsedIntent = await withTimeout(
+          parseIntent(event.text, geminiApiKey),
+          COMMAND_TIMEOUT_MS,
+        );
+
+        if (isStale()) return; // A newer command superseded this one
 
         if (parsedIntent.intent === 'UNKNOWN') {
           await BackgroundServiceBridge?.notifyCommandResult(
@@ -49,7 +67,14 @@ export function setupBackgroundServiceListener(): void {
           return;
         }
 
-        const actionResult = await dispatchAction(parsedIntent);
+        if (isStale()) return;
+
+        const actionResult = await withTimeout(
+          dispatchAction(parsedIntent),
+          COMMAND_TIMEOUT_MS,
+        );
+
+        if (isStale()) return;
 
         await BackgroundServiceBridge?.notifyCommandResult(
           actionResult.success,
@@ -62,12 +87,19 @@ export function setupBackgroundServiceListener(): void {
           actionResult.message,
           actionResult.success,
         );
-      } catch (e) {
+      } catch (e: any) {
+        if (isStale()) return;
+
+        const message = e?.message === 'TIMEOUT'
+          ? 'הפקודה לקחה יותר מדי זמן'
+          : 'שגיאה בעיבוד הפקודה';
+
         console.log('[BackgroundServiceListener] Pipeline error:', e);
-        await BackgroundServiceBridge?.notifyCommandResult(
-          false,
-          'שגיאה בעיבוד הפקודה',
-        );
+        try {
+          await BackgroundServiceBridge?.notifyCommandResult(false, message);
+        } catch (_) {
+          // Service may have stopped — safe to ignore
+        }
       }
     },
   );
@@ -87,5 +119,15 @@ function logConversation(
     result,
     status: success ? 'success' : 'error',
     timestamp: Date.now(),
+  });
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('TIMEOUT')), ms);
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (err) => { clearTimeout(timer); reject(err); },
+    );
   });
 }
