@@ -69,7 +69,8 @@ class DabriFloatingService : Service() {
 
         voiceOverlayManager = VoiceOverlayManager(
             context = this,
-            onClose = { handleOverlayClose() }
+            onClose = { handleOverlayClose() },
+            onOpenApp = { handleOpenApp() }
         )
 
         wakeWordManager = WakeWordManager(
@@ -249,6 +250,15 @@ class DabriFloatingService : Service() {
             startListening()
             emitState("listening")
         }
+    }
+
+    private fun handleOpenApp() {
+        handleOverlayClose()
+        try {
+            val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+            launchIntent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            startActivity(launchIntent)
+        } catch (_: Exception) {}
     }
 
     private fun handleBubbleLongPress() {

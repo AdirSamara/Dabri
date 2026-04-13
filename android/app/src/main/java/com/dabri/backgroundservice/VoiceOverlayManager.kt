@@ -20,7 +20,8 @@ import android.widget.TextView
 
 class VoiceOverlayManager(
     private val context: Context,
-    private val onClose: () -> Unit
+    private val onClose: () -> Unit,
+    private val onOpenApp: () -> Unit
 ) {
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private var overlayView: FrameLayout? = null
@@ -193,6 +194,31 @@ class VoiceOverlayManager(
         scroll.addView(tText)
         transcriptWrapper.addView(scroll)
         card.addView(transcriptWrapper)
+
+        // "Open app" button
+        val openAppBtn = TextView(context).apply {
+            text = "פתח את דברי"
+            setTextColor(Color.parseColor("#2196F3"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            textDirection = View.TEXT_DIRECTION_RTL
+            textAlignment = View.TEXT_ALIGNMENT_CENTER
+            val btnBg = GradientDrawable().apply {
+                setColor(Color.parseColor("#2196F320"))
+                cornerRadius = dpToPx(10f)
+            }
+            background = btnBg
+            setPadding(dpToPx(12f).toInt(), dpToPx(10f).toInt(), dpToPx(12f).toInt(), dpToPx(10f).toInt())
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = dpToPx(12f).toInt()
+            }
+            setOnClickListener { onOpenApp() }
+        }
+        card.addView(openAppBtn)
 
         root.addView(card, cardParams)
 
