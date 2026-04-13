@@ -210,26 +210,34 @@ class BackgroundServiceModule(private val reactContext: ReactApplicationContext)
     @ReactMethod
     fun pauseWakeWord(promise: Promise) {
         try {
-            val intent = Intent(appContext, DabriFloatingService::class.java).apply {
-                action = DabriFloatingService.ACTION_PAUSE_WAKE_WORD
+            // Only send intent if service is actually running
+            if (ServiceStateManager.wasEnabled(appContext)) {
+                val intent = Intent(appContext, DabriFloatingService::class.java).apply {
+                    action = DabriFloatingService.ACTION_PAUSE_WAKE_WORD
+                }
+                appContext.startService(intent)
             }
-            appContext.startService(intent)
             promise.resolve(true)
         } catch (e: Exception) {
-            promise.reject("PAUSE_WW_ERROR", e.message, e)
+            // Service not running — safe to ignore
+            promise.resolve(true)
         }
     }
 
     @ReactMethod
     fun resumeWakeWord(promise: Promise) {
         try {
-            val intent = Intent(appContext, DabriFloatingService::class.java).apply {
-                action = DabriFloatingService.ACTION_RESUME_WAKE_WORD
+            // Only send intent if service is actually running
+            if (ServiceStateManager.wasEnabled(appContext)) {
+                val intent = Intent(appContext, DabriFloatingService::class.java).apply {
+                    action = DabriFloatingService.ACTION_RESUME_WAKE_WORD
+                }
+                appContext.startService(intent)
             }
-            appContext.startService(intent)
             promise.resolve(true)
         } catch (e: Exception) {
-            promise.reject("RESUME_WW_ERROR", e.message, e)
+            // Service not running — safe to ignore
+            promise.resolve(true)
         }
     }
 
