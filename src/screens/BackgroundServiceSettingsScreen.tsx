@@ -187,31 +187,6 @@ export function BackgroundServiceSettingsScreen(): React.JSX.Element {
           fontWeight: '600',
           writingDirection: 'rtl',
         },
-        batteryHintCard: {
-          backgroundColor: '#FFF3E0',
-          borderRadius: 14,
-          padding: 16,
-          gap: 8,
-        },
-        batteryHintText: {
-          fontSize: 13,
-          color: '#E65100',
-          writingDirection: 'rtl',
-          textAlign: 'right',
-          lineHeight: 20,
-        },
-        batteryHintButton: {
-          backgroundColor: '#FF980020',
-          borderRadius: 8,
-          paddingVertical: 8,
-          alignItems: 'center',
-        },
-        batteryHintButtonText: {
-          color: '#E65100',
-          fontSize: 13,
-          fontWeight: '600',
-          writingDirection: 'rtl',
-        },
         hint: {
           fontSize: 12,
           color: theme.textTertiary,
@@ -332,18 +307,6 @@ export function BackgroundServiceSettingsScreen(): React.JSX.Element {
       console.log('[BackgroundServiceSettings] Wake word config error:', e);
     }
   }, [setWakeWordEnabled, setWakeWordPhrase]);
-
-  const openBatterySettings = useCallback(async () => {
-    try {
-      await Linking.sendIntent('android.settings.BATTERY_SAVER_SETTINGS');
-    } catch {
-      try {
-        await Linking.sendIntent('android.settings.SETTINGS');
-      } catch {
-        ToastAndroid.show('לא ניתן לפתוח הגדרות', ToastAndroid.SHORT);
-      }
-    }
-  }, []);
 
   const getStatusColor = () => {
     if (isRunning) return '#4CAF50';
@@ -528,20 +491,6 @@ export function BackgroundServiceSettingsScreen(): React.JSX.Element {
           )}
         </View>
       )}
-
-      {/* Battery optimization hint */}
-      <View style={styles.batteryHintCard}>
-        <Text style={styles.batteryHintText}>
-          אם השירות נעצר באופן אוטומטי, ודא שדברי לא מוגבלת בהגדרות הסוללה
-          של המכשיר. הוסף את דברי לרשימת האפליקציות שלא יוגבלו ברקע.
-        </Text>
-        <TouchableOpacity
-          style={styles.batteryHintButton}
-          onPress={openBatterySettings}
-        >
-          <Text style={styles.batteryHintButtonText}>פתח הגדרות סוללה</Text>
-        </TouchableOpacity>
-      </View>
 
       {/* How to stop */}
       <Text style={styles.hint}>

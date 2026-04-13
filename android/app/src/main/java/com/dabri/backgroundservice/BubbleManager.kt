@@ -55,7 +55,7 @@ class BubbleManager(
         private const val TAP_DEBOUNCE_MS = 500L
         private const val LONG_PRESS_MS = 600L
         private const val SNAP_DURATION_MS = 250L
-        private const val DISMISS_ZONE_SIZE_DP = 56
+        private const val DISMISS_ZONE_SIZE_DP = 64
         private const val DISMISS_ZONE_RADIUS_DP = 60
     }
 
@@ -182,7 +182,7 @@ class BubbleManager(
             height = zoneSizePx
             gravity = Gravity.TOP or Gravity.START
             x = displayMetrics.widthPixels / 2 - zoneSizePx / 2
-            y = displayMetrics.heightPixels - zoneSizePx - dpToPx(60)
+            y = displayMetrics.heightPixels - zoneSizePx - dpToPx(120)
         }
 
         try {
@@ -208,7 +208,7 @@ class BubbleManager(
         val radiusPx = dpToPx(DISMISS_ZONE_RADIUS_DP)
 
         val zoneCenterX = displayMetrics.widthPixels / 2
-        val zoneCenterY = displayMetrics.heightPixels - zoneSizePx / 2 - dpToPx(60)
+        val zoneCenterY = displayMetrics.heightPixels - zoneSizePx / 2 - dpToPx(120)
         val bubbleCenterX = bubbleX + bubbleSizePx / 2
         val bubbleCenterY = bubbleY + bubbleSizePx / 2
 
