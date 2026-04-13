@@ -19,7 +19,7 @@ export interface AppMatch {
 export interface AppResolveResult {
   matches: AppMatch[];
   bestTier: AppMatchTier;
-  category: string | null; // non-null = launch via launchByCategory()
+  category: string | null;
 }
 
 // ── Installed apps cache ─────────────────────────────────────────────
@@ -28,8 +28,9 @@ interface InstalledApp {
   packageName: string;
   label: string;
   normalizedLabel: string;
-  /** Consonant skeleton of the English label for phonetic matching */
   skeleton: string;
+  /** Key segments from package name for matching (e.g., ["whatsapp"] from com.whatsapp) */
+  packageSegments: string[];
 }
 
 let installedAppsCache: InstalledApp[] = [];
@@ -47,6 +48,7 @@ export async function loadInstalledApps(): Promise<void> {
       label: a.label,
       normalizedLabel: normalizeHebrew(a.label),
       skeleton: consonantSkeleton(a.label),
+      packageSegments: extractPackageSegments(a.packageName),
     }));
     cacheLoaded = true;
   } catch {
@@ -59,12 +61,24 @@ export function invalidateAppCache(): void {
   cacheLoaded = false;
 }
 
-// ── Category Map (system intents, NOT specific apps) ─────────────────
+/**
+ * Extract meaningful segments from a package name.
+ * "com.whatsapp" → ["whatsapp"]
+ * "com.facebook.katana" → ["facebook", "katana"]
+ * "com.google.android.apps.maps" → ["google", "maps"]
+ */
+function extractPackageSegments(packageName: string): string[] {
+  const skip = new Set(['com', 'org', 'net', 'android', 'apps', 'app', 'mobile', 'lite', 'main']);
+  return packageName
+    .split('.')
+    .filter((seg) => seg.length > 2 && !skip.has(seg))
+    .map((seg) => seg.toLowerCase());
+}
 
 // ── Self-launch detection ────────────────────────────────────────────
-// The app excludes itself from getInstalledApps(), so "תפתח דברי"
-// would fuzzy-match to the wrong app. Handle it explicitly.
 const SELF_NAMES = ['דברי', 'dabri', 'דאברי'];
+
+// ── Category Map ─────────────────────────────────────────────────────
 
 const CATEGORY_MAP: Record<string, string> = {
   'מצלמה':            'camera',
@@ -81,13 +95,11 @@ const CATEGORY_MAP: Record<string, string> = {
   'יומן':             'calendar',
 };
 
-// ── Fallback Map (Hebrew words → English search term) ────────────────
-// Only for native Hebrew words where phonetic transliteration can't work
-// because the English label is a completely different word.
-// NOT package names — these are search terms matched against installed labels.
+// ── Fallback Map (Hebrew TRANSLATIONS → English) ─────────────────────
+// Only for words where Hebrew is a genuine translation, not a phonetic
+// transliteration. Transliterations are handled by the phonetic engine.
 
 const FALLBACK_MAP: Record<string, string> = {
-  // Utilities
   'שעון':        'clock',
   'שעון מעורר':  'alarm',
   'טיימר':       'timer',
@@ -100,50 +112,13 @@ const FALLBACK_MAP: Record<string, string> = {
   'אימייל':      'email',
   'מפות':        'maps',
   'אינטרנט':     'internet',
-  // Social & messaging
-  'פייסבוק':     'facebook',
-  'פייס':        'facebook',
-  'אינסטגרם':    'instagram',
-  'אינסטה':      'instagram',
-  'טיקטוק':      'tiktok',
-  'טלגרם':       'telegram',
-  'סנאפצט':      'snapchat',
-  'סנאפ':        'snapchat',
-  'לינקדאין':    'linkedin',
-  'לינקד אין':   'linkedin',
-  'טוויטר':      'twitter',
   'אקס':         'x',
-  'רדיט':        'reddit',
-  'פינטרסט':     'pinterest',
-  'דיסקורד':     'discord',
-  'תרדס':        'threads',
-  // Video & music
-  'יוטיוב':      'youtube',
-  'יו טיוב':     'youtube',
-  'נטפליקס':     'netflix',
-  'ספוטיפיי':    'spotify',
-  'ספוטיפי':     'spotify',
-  'טוויץ':       'twitch',
-  // Shopping & food
-  'אמזון':       'amazon',
-  'אליאקספרס':   'aliexpress',
-  'שיין':        'shein',
-  'וולט':        'wolt',
-  'גט':          'gett',
-  // Productivity
-  'גוגל':        'google',
-  'כרום':        'chrome',
-  'גימייל':      'gmail',
-  'ג׳ימייל':     'gmail',
-  'דרייב':       'drive',
-  'זום':         'zoom',
-  'טימס':        'teams',
 };
 
 // ── Hebrew → Latin Phonetic Transliteration ──────────────────────────
 
-/** Multi-character Hebrew patterns processed first (order matters). */
 const DIGRAPHS: [string, string][] = [
+  ['ווא', 'wa'],  // Must come before וו
   ['וו', 'w'],
   ['יי', 'i'],
   ['או', 'o'],
@@ -151,9 +126,10 @@ const DIGRAPHS: [string, string][] = [
   ["ג'", 'j'],
   ["צ'", 'ch'],
   ["ז'", 'zh'],
+  ['טש', 'ch'],
 ];
 
-/** Single Hebrew character → Latin sound. */
+/** Primary mapping: Hebrew character → most common Latin sound. */
 const CHAR_MAP: Record<string, string> = {
   'א': 'a', 'ב': 'b', 'ג': 'g', 'ד': 'd', 'ה': 'h',
   'ו': 'o', 'ז': 'z', 'ח': 'h', 'ט': 't', 'י': 'i',
@@ -163,42 +139,75 @@ const CHAR_MAP: Record<string, string> = {
   'ש': 'sh', 'ת': 't',
 };
 
+/** Ambiguous characters that can map to multiple Latin sounds. */
+const AMBIGUOUS: Record<string, string[]> = {
+  'פ': ['p', 'f'],
+  'ב': ['b', 'v'],
+  'כ': ['k', 'ch'],
+  'ך': ['k', 'ch'],
+  'ו': ['o', 'v', 'u'],
+  'ש': ['sh', 's'],
+};
+
 /**
- * Convert Hebrew text to approximate Latin phonetic representation.
- * Processes digraphs first, then single characters.
- * Non-Hebrew characters pass through unchanged (handles mixed text).
+ * Generate multiple Latin transliteration variants from Hebrew text.
+ * Handles ambiguous characters (פ→p/f, ב→b/v, etc.) by branching.
+ * Capped at maxVariants to keep it fast.
  */
-function hebrewToLatin(text: string): string {
-  let result = text.toLowerCase().trim();
+function hebrewToLatinVariants(text: string, maxVariants = 8): string[] {
+  let processed = text.toLowerCase().trim();
+  // Normalize triple-vav
+  processed = processed.replace(/ווו/g, 'וו');
+  // Normalize geresh
+  processed = processed.replace(/׳/g, "'");
 
   // Process digraphs first
   for (const [heb, lat] of DIGRAPHS) {
-    result = result.split(heb).join(lat);
+    processed = processed.split(heb).join(lat);
   }
 
-  // Process remaining single characters
-  let output = '';
-  for (const ch of result) {
-    output += CHAR_MAP[ch] ?? ch;
+  // Build variants by expanding ambiguous characters
+  let variants: string[] = [''];
+
+  for (const ch of processed) {
+    const alts = AMBIGUOUS[ch];
+    if (alts && variants.length < maxVariants) {
+      const newVariants: string[] = [];
+      for (const prefix of variants) {
+        for (const alt of alts) {
+          newVariants.push(prefix + alt);
+          if (newVariants.length >= maxVariants) { break; }
+        }
+        if (newVariants.length >= maxVariants) { break; }
+      }
+      variants = newVariants;
+    } else {
+      const mapped = CHAR_MAP[ch] ?? ch;
+      variants = variants.map((v) => v + mapped);
+    }
   }
 
-  return output;
+  return variants;
 }
 
 /**
- * Extract consonant skeleton from text (strip vowels + normalize).
- * Used to compare Hebrew transliterations against English labels.
+ * Extract consonant skeleton: strip non-latin, strip vowels, collapse repeats.
+ * The collapse step is critical — "whatsapp" → "whtsp" not "whtspp",
+ * making it much closer to Hebrew transliteration skeletons.
  */
 function consonantSkeleton(text: string): string {
   return text
     .toLowerCase()
-    .replace(/[^a-z]/g, '')     // keep only Latin letters
-    .replace(/[aeiou]/g, '');   // strip vowels
+    .replace(/[^a-z]/g, '')
+    .replace(/[aeiou]/g, '')
+    .replace(/(.)\1+/g, '$1');  // collapse repeated consonants
 }
 
-/** Consonant skeleton of a Hebrew word via transliteration. */
-function hebrewSkeleton(hebrewText: string): string {
-  return consonantSkeleton(hebrewToLatin(hebrewText));
+/** Get multiple consonant skeletons from Hebrew text via variant transliterations. */
+function hebrewSkeletons(hebrewText: string): string[] {
+  return hebrewToLatinVariants(hebrewText)
+    .map((v) => consonantSkeleton(v))
+    .filter((v, i, arr) => v.length >= 2 && arr.indexOf(v) === i);
 }
 
 // ── Matching ─────────────────────────────────────────────────────────
@@ -210,7 +219,6 @@ function fuzzyThreshold(len: number): number {
   return 3;
 }
 
-/** Score an app against a direct (non-transliterated) query. */
 function scoreOneApp(query: string, app: InstalledApp): AppMatchTier {
   const label = app.normalizedLabel;
 
@@ -241,7 +249,6 @@ function scoreOneApp(query: string, app: InstalledApp): AppMatchTier {
   return AppMatchTier.NONE;
 }
 
-/** Collect best-tier matches from a scoring pass. Returns up to 3. */
 function collectBestMatches(
   apps: InstalledApp[],
   scorer: (app: InstalledApp) => AppMatchTier,
@@ -270,40 +277,62 @@ function collectBestMatches(
 }
 
 /**
- * Score an app using phonetic consonant skeleton comparison.
- * Compares the Hebrew query's skeleton against the app label's skeleton.
+ * Score an app using phonetic skeleton comparison with MULTIPLE query variants.
+ * Uses Math.max of both lengths for threshold — critical for asymmetric lengths.
  */
-function scorePhonetic(querySkeleton: string, app: InstalledApp): AppMatchTier {
+function scorePhonetic(querySkeletons: string[], app: InstalledApp): AppMatchTier {
   const labelSkeleton = app.skeleton;
+  if (!labelSkeleton) { return AppMatchTier.NONE; }
 
-  if (!querySkeleton || !labelSkeleton) { return AppMatchTier.NONE; }
+  for (const qs of querySkeletons) {
+    if (!qs) { continue; }
 
-  if (labelSkeleton === querySkeleton) { return AppMatchTier.EXACT; }
+    if (labelSkeleton === qs) { return AppMatchTier.EXACT; }
 
-  // Check if one contains the other (for partial matches)
-  if (labelSkeleton.includes(querySkeleton) && querySkeleton.length >= 3) {
-    return AppMatchTier.PREFIX;
-  }
-  if (querySkeleton.includes(labelSkeleton) && labelSkeleton.length >= 3) {
-    return AppMatchTier.PREFIX;
-  }
+    if (labelSkeleton.includes(qs) && qs.length >= 3) { return AppMatchTier.PREFIX; }
+    if (qs.includes(labelSkeleton) && labelSkeleton.length >= 3) { return AppMatchTier.PREFIX; }
 
-  // Fuzzy on skeletons — use generous threshold since skeletons are short
-  const threshold = fuzzyThreshold(querySkeleton.length);
-  if (threshold > 0 && levenshteinDistance(querySkeleton, labelSkeleton) <= threshold) {
-    return AppMatchTier.FUZZY;
-  }
-
-  // Also try skeleton-per-word (for multi-word labels like "Google Maps")
-  const labelWords = app.normalizedLabel.split(/\s+/);
-  for (const w of labelWords) {
-    const wordSkeleton = consonantSkeleton(w);
-    if (wordSkeleton === querySkeleton) { return AppMatchTier.EXACT; }
-    if (threshold > 0 && levenshteinDistance(querySkeleton, wordSkeleton) <= threshold) {
+    const maxLen = Math.max(qs.length, labelSkeleton.length);
+    const threshold = fuzzyThreshold(maxLen);
+    if (threshold > 0 && levenshteinDistance(qs, labelSkeleton) <= threshold) {
       return AppMatchTier.FUZZY;
+    }
+
+    // Per-word skeleton match
+    const labelWords = app.normalizedLabel.split(/\s+/);
+    for (const w of labelWords) {
+      const wordSkeleton = consonantSkeleton(w);
+      if (wordSkeleton === qs) { return AppMatchTier.EXACT; }
+      const wMax = Math.max(qs.length, wordSkeleton.length);
+      const wThreshold = fuzzyThreshold(wMax);
+      if (wThreshold > 0 && levenshteinDistance(qs, wordSkeleton) <= wThreshold) {
+        return AppMatchTier.FUZZY;
+      }
     }
   }
 
+  return AppMatchTier.NONE;
+}
+
+/**
+ * Score an app by matching query skeletons against package name segments.
+ * "com.whatsapp" → segment skeleton "whtsp" — matches Hebrew "ווטסאפ" → "wtsp".
+ */
+function scorePackageName(querySkeletons: string[], app: InstalledApp): AppMatchTier {
+  for (const seg of app.packageSegments) {
+    const segSkeleton = consonantSkeleton(seg);
+    if (!segSkeleton || segSkeleton.length < 2) { continue; }
+
+    for (const qs of querySkeletons) {
+      if (segSkeleton === qs) { return AppMatchTier.EXACT; }
+
+      const maxLen = Math.max(qs.length, segSkeleton.length);
+      const threshold = fuzzyThreshold(maxLen);
+      if (threshold > 0 && levenshteinDistance(qs, segSkeleton) <= threshold) {
+        return AppMatchTier.FUZZY;
+      }
+    }
+  }
   return AppMatchTier.NONE;
 }
 
@@ -312,13 +341,14 @@ function scorePhonetic(querySkeleton: string, app: InstalledApp): AppMatchTier {
 /**
  * Resolve a Hebrew app name to installed app(s) or a system category.
  *
- * Strategy (in order):
- *  1. Category map → system intent (camera, settings, etc.)
- *  2. Direct label match (Hebrew or English query vs installed labels)
- *  3. Fallback map → translate Hebrew word to English → search labels
- *  4. Phonetic transliteration → consonant skeleton match
- *  5. Retry 2-4 with leading ה restored
- *  6. No match → empty
+ * Strategy:
+ *  0. Self-launch (Dabri)
+ *  1. Category map → system intent
+ *  2. Direct label match
+ *  3. Fallback map (Hebrew translations → English)
+ *  4. Phonetic multi-variant skeleton match (against app labels)
+ *  5. Package name segment skeleton match
+ *  6. Retry 2-5 with leading ה restored
  */
 export async function resolveAppName(rawName: string): Promise<AppResolveResult> {
   if (!cacheLoaded) {
@@ -331,27 +361,18 @@ export async function resolveAppName(rawName: string): Promise<AppResolveResult>
   // ── Step 0: Self-launch (Dabri) ──
   if (SELF_NAMES.includes(normalized)) {
     return {
-      matches: [{
-        packageName: 'com.dabri',
-        label: 'דברי',
-        tier: AppMatchTier.EXACT,
-      }],
+      matches: [{ packageName: 'com.dabri', label: 'דברי', tier: AppMatchTier.EXACT }],
       bestTier: AppMatchTier.EXACT,
       category: null,
     };
   }
 
-  // ── Step 1: Category map (system intents) ──
+  // ── Step 1: Category map ──
   const category = CATEGORY_MAP[normalized];
   if (category) {
-    return {
-      matches: [],
-      bestTier: AppMatchTier.EXACT,
-      category,
-    };
+    return { matches: [], bestTier: AppMatchTier.EXACT, category };
   }
 
-  // Try resolving with the given name, then retry with ה restored
   const candidates = [normalized, 'ה' + normalized];
 
   for (const query of candidates) {
@@ -364,7 +385,7 @@ export async function resolveAppName(rawName: string): Promise<AppResolveResult>
       return { matches: directMatches, bestTier: directMatches[0].tier, category: null };
     }
 
-    // ── Step 3: Fallback map (Hebrew words → English search term) ──
+    // ── Step 3: Fallback map ──
     const fallback = FALLBACK_MAP[query];
     if (fallback) {
       const fallbackMatches = collectBestMatches(
@@ -376,15 +397,24 @@ export async function resolveAppName(rawName: string): Promise<AppResolveResult>
       }
     }
 
-    // ── Step 4: Phonetic transliteration match ──
-    const skeleton = hebrewSkeleton(query);
-    if (skeleton.length >= 2) {
+    // ── Step 4: Phonetic multi-variant match ──
+    const skeletons = hebrewSkeletons(query);
+    if (skeletons.length > 0) {
       const phoneticMatches = collectBestMatches(
         installedAppsCache,
-        (app) => scorePhonetic(skeleton, app),
+        (app) => scorePhonetic(skeletons, app),
       );
       if (phoneticMatches.length > 0) {
         return { matches: phoneticMatches, bestTier: phoneticMatches[0].tier, category: null };
+      }
+
+      // ── Step 5: Package name segment match ──
+      const packageMatches = collectBestMatches(
+        installedAppsCache,
+        (app) => scorePackageName(skeletons, app),
+      );
+      if (packageMatches.length > 0) {
+        return { matches: packageMatches, bestTier: packageMatches[0].tier, category: null };
       }
     }
   }
