@@ -3,6 +3,7 @@ import { registerCallHandlers } from './callService';
 import { registerNotificationHandlers, setupNotificationListener } from './notificationService';
 import { registerWhatsAppHandlers } from './whatsappService';
 import { registerAppLauncherHandlers } from './appLauncherService';
+import { registerNavigationHandlers } from './navigationService';
 import { loadInstalledApps } from './appNameResolver';
 import { registerReminderHandlers, initReminderChannel } from './reminderService';
 
@@ -12,6 +13,7 @@ export function initializeServices(): void {
   registerNotificationHandlers();
   registerWhatsAppHandlers();
   registerAppLauncherHandlers();
+  registerNavigationHandlers();
   registerReminderHandlers();
   setupNotificationListener();
 

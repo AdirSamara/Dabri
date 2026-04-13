@@ -11,6 +11,7 @@ import { VoiceSpeedSettingsScreen } from './src/screens/VoiceSpeedSettingsScreen
 import { AboutScreen } from './src/screens/AboutScreen';
 import { RemindersScreen } from './src/screens/RemindersScreen';
 import { SilenceTimeoutSettingsScreen } from './src/screens/SilenceTimeoutSettingsScreen';
+import { NavigationSettingsScreen } from './src/screens/NavigationSettingsScreen';
 import { initializeServices } from './src/services';
 import { useDabriStore } from './src/store';
 import { lightTheme, darkTheme } from './src/utils/theme';
@@ -31,6 +32,7 @@ export type RootStackParamList = {
   VoiceSpeedSettings: undefined;
   Reminders: undefined;
   SilenceTimeoutSettings: undefined;
+  NavigationSettings: undefined;
   About: undefined;
 };
 
@@ -134,6 +136,11 @@ function App(): React.JSX.Element {
             name="SilenceTimeoutSettings"
             component={SilenceTimeoutSettingsScreen}
             options={{ headerTitle: 'זמן שתיקה לעצירה' }}
+          />
+          <Stack.Screen
+            name="NavigationSettings"
+            component={NavigationSettingsScreen}
+            options={{ headerTitle: 'הגדרות ניווט' }}
           />
           <Stack.Screen
             name="About"

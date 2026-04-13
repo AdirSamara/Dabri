@@ -6,6 +6,7 @@ export type Intent =
   | 'READ_WHATSAPP'
   | 'READ_NOTIFICATIONS'
   | 'SET_REMINDER'
+  | 'NAVIGATE'
   | 'OPEN_APP'
   | 'UNKNOWN';
 
@@ -14,6 +15,8 @@ export interface ParsedIntent {
   contact: string | null;
   message: string | null;
   appName: string | null;
+  destination: string | null;
+  navApp: 'waze' | 'google_maps' | null;
   reminderText: string | null;
   reminderTime: string | null;
   count: number | null;

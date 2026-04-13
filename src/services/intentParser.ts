@@ -10,6 +10,7 @@ const KNOWN_INTENTS: Intent[] = [
   'READ_WHATSAPP',
   'READ_NOTIFICATIONS',
   'SET_REMINDER',
+  'NAVIGATE',
   'OPEN_APP',
   'UNKNOWN',
 ];
@@ -19,6 +20,8 @@ const UNKNOWN_INTENT: ParsedIntent = {
   contact: null,
   message: null,
   appName: null,
+  destination: null,
+  navApp: null,
   reminderText: null,
   reminderTime: null,
   count: null,
@@ -76,6 +79,25 @@ function cleanAppName(raw: string): string {
   // Strip trailing בבקשה
   name = name.replace(/\s+בבקשה$/, '');
   return name.trim();
+}
+
+/** Strip Hebrew grammar particles from a captured navigation destination. */
+function cleanDestination(raw: string): string {
+  let dest = raw.trim();
+  dest = dest.replace(/^את\s+ה/, '');
+  dest = dest.replace(/^את\s+/, '');
+  dest = dest.replace(/^ה(?=[א-ת])/, '');
+  dest = dest.replace(/^לי\s+/, '');
+  dest = dest.replace(/\s+בבקשה$/, '');
+  dest = dest.replace(/^בבקשה\s+/, '');
+  return dest.trim();
+}
+
+/** Extract explicit nav-app preference from the full utterance. */
+function extractNavApp(text: string): 'waze' | 'google_maps' | null {
+  if (/וויז|ווייז|ויז|waze/i.test(text)) return 'waze';
+  if (/גוגל\s*מפות|google\s*maps/i.test(text)) return 'google_maps';
+  return null;
 }
 
 function parseIntentWithRegex(text: string): ParsedIntent {
@@ -183,6 +205,8 @@ function parseIntentWithRegex(text: string): ParsedIntent {
       contact: sendWaMatch[1].trim(),
       message: rawMessage,
       appName: null,
+      destination: null,
+      navApp: null,
       reminderText: null,
       reminderTime: null,
       count: null,
@@ -198,6 +222,8 @@ function parseIntentWithRegex(text: string): ParsedIntent {
       contact: sendSmsMatch[1].trim(),
       message: sendSmsMatch[2].trim(),
       appName: null,
+      destination: null,
+      navApp: null,
       reminderText: null,
       reminderTime: null,
       count: null,
@@ -215,6 +241,8 @@ function parseIntentWithRegex(text: string): ParsedIntent {
       contact: callMatch[1].trim().replace(/[\?!.]+$/, ''),
       message: null,
       appName: null,
+      destination: null,
+      navApp: null,
       reminderText: null,
       reminderTime: null,
       count: null,
@@ -229,6 +257,8 @@ function parseIntentWithRegex(text: string): ParsedIntent {
       contact: null,
       message: null,
       appName: null,
+      destination: null,
+      navApp: null,
       reminderText: null,
       reminderTime: null,
       count: null,
@@ -243,6 +273,8 @@ function parseIntentWithRegex(text: string): ParsedIntent {
       contact: null,
       message: null,
       appName: null,
+      destination: null,
+      navApp: null,
       reminderText: null,
       reminderTime: null,
       count: smsCount(text),
@@ -257,6 +289,8 @@ function parseIntentWithRegex(text: string): ParsedIntent {
       contact: null,
       message: null,
       appName: null,
+      destination: null,
+      navApp: null,
       reminderText: null,
       reminderTime: null,
       count: null,
@@ -264,7 +298,151 @@ function parseIntentWithRegex(text: string): ParsedIntent {
     };
   }
 
-  // 7. OPEN_APP ─────────────────────────────────────────────────────────
+  // ── 7. NAVIGATE ────────────────────────────────────────────────────────
+  // Checked BEFORE OPEN_APP because they share verbs (תפתח, תדליק, קח אותי).
+  // "תפתח וויז לתל אביב" → NAVIGATE; "תפתח וויז" (no dest) → falls to OPEN_APP.
+
+  const NAV_APP_KW = '(?:וויז|ווייז|ויז|וויס|waze|גוגל\\s*מפות|google\\s*maps|ניווט|מפות)';
+  const NAV_POLITE_SUFFIX = '(?:\\s+בבקשה)?';
+
+  // Reuse POLITE from SET_REMINDER section (already defined above)
+
+  // Direct verbs shared with OPEN_APP (reused below in OPEN_APP too)
+  const NAV_OPEN_DIRECT =
+    '(?:תפתח|תפתחי|פתח|פתחי|לפתוח' +
+    '|תפעיל|תפעילי|הפעל|הפעילי|להפעיל' +
+    '|תריץ|תריצי|הרץ|הריצי|להריץ' +
+    '|תעלה|תעלי|העלה|להעלות' +
+    '|תדליק|תדליקי|הדלק|הדליקי|להדליק)';
+
+  // --- Group 6: Nav-app + destination (resolves OPEN_APP conflict) ---
+  const nav6_waze_verb = new RegExp(
+    '(?:תוויז|תווייז|תוויזי)(?:\\s+לי)?' + NAV_POLITE_SUFFIX + '\\s+(?:ל|אל\\s+)(.+)', 'i');
+  const nav6_waze_verb_home = new RegExp(
+    '(?:תוויז|תווייז|תוויזי)(?:\\s+לי)?' + NAV_POLITE_SUFFIX + '\\s+(הביתה)', 'i');
+  const nav6_open_app = new RegExp(
+    NAV_OPEN_DIRECT + '(?:\\s+לי)?\\s+(?:את\\s+)?(?:ה)?' + NAV_APP_KW +
+    NAV_POLITE_SUFFIX + '\\s+(?:ל|אל\\s+)(.+)', 'i');
+  const nav6_open_app_home = new RegExp(
+    NAV_OPEN_DIRECT + '(?:\\s+לי)?\\s+(?:את\\s+)?(?:ה)?' + NAV_APP_KW +
+    NAV_POLITE_SUFFIX + '\\s+(הביתה)', 'i');
+  const nav6_put = new RegExp(
+    '(?:שים|שימי|תשים|תשימי)(?:\\s+לי)?\\s+' + NAV_APP_KW +
+    NAV_POLITE_SUFFIX + '\\s+(?:ל|אל\\s+)(.+)', 'i');
+  const nav6_put_home = new RegExp(
+    '(?:שים|שימי|תשים|תשימי)(?:\\s+לי)?\\s+' + NAV_APP_KW +
+    NAV_POLITE_SUFFIX + '\\s+(הביתה)', 'i');
+  const nav6_start = new RegExp(
+    '(?:התחל|התחילי|תתחיל|תתחילי|הפעל|הפעילי|תפעיל|תפעילי|תדליק|תדליקי)\\s+ניווט' +
+    NAV_POLITE_SUFFIX + '\\s+(?:ל|אל\\s+)(.+)', 'i');
+  const nav6_start_home = new RegExp(
+    '(?:התחל|התחילי|תתחיל|תתחילי|הפעל|הפעילי|תפעיל|תפעילי|תדליק|תדליקי)\\s+ניווט' +
+    NAV_POLITE_SUFFIX + '\\s+(הביתה)', 'i');
+
+  // --- Group 4: "Show me the way/route to" ---
+  const nav4 = new RegExp(
+    '(?:תראה|תראי|הראה|הראי)\\s+לי\\s+את\\s+(?:הדרך|המסלול)' +
+    NAV_POLITE_SUFFIX + '\\s+(?:ל|אל\\s+)(.+)', 'i');
+  const nav4_home = new RegExp(
+    '(?:תראה|תראי|הראה|הראי)\\s+לי\\s+את\\s+(?:הדרך|המסלול)' +
+    NAV_POLITE_SUFFIX + '\\s+(הביתה)', 'i');
+
+  // --- Group 3: "How to get to" ---
+  const nav3 = new RegExp(
+    'איך\\s+(?:מגיעים|להגיע|אפשר\\s+להגיע|אני\\s+(?:מגיע|מגיעה))' +
+    '\\s+(?:ל|אל\\s+)(.+)', 'i');
+  const nav3_home = new RegExp(
+    'איך\\s+(?:מגיעים|להגיע|אפשר\\s+להגיע|אני\\s+(?:מגיע|מגיעה))' +
+    '\\s+(הביתה)', 'i');
+
+  // --- Group 1: Direct navigate verbs ---
+  const NAV_DIRECT = '(?:תנווט|נווט|תנווטי|נווטי|לנווט)';
+  const nav1 = new RegExp(
+    POLITE + NAV_DIRECT + NAV_POLITE_SUFFIX +
+    '(?:\\s+אותי)?\\s+(?:ל|אל\\s+)(.+)', 'i');
+  const nav1_home = new RegExp(
+    POLITE + NAV_DIRECT + NAV_POLITE_SUFFIX +
+    '(?:\\s+אותי)?\\s+(הביתה)', 'i');
+
+  // --- Group 5: Drive/go to ---
+  const NAV_DRIVE = '(?:סע|סעי|תיסע|תיסעי|לנסוע|נסע)';
+  const nav5 = new RegExp(
+    POLITE + NAV_DRIVE + NAV_POLITE_SUFFIX + '\\s+(?:ל|אל\\s+)(.+)', 'i');
+  const nav5_home = new RegExp(
+    POLITE + NAV_DRIVE + NAV_POLITE_SUFFIX + '\\s+(הביתה)', 'i');
+
+  // --- Group 2: "Take me to" / "Bring me" / "Lead me" ---
+  // NOTE: excludes תעביר/תעבירי — those stay in OPEN_APP Pattern D only
+  const NAV_TAKE = '(?:קח|קחי|תיקח|תיקחי|תביא|תביאי|הבא|הביאי|תוביל|תובילי|הוביל|תנחה|תנחי|הנחה)';
+  const nav2 = new RegExp(
+    POLITE + NAV_TAKE + '\\s+אותי' + NAV_POLITE_SUFFIX +
+    '\\s+(?:ל|אל\\s+)(.+)', 'i');
+  const nav2_home = new RegExp(
+    POLITE + NAV_TAKE + '\\s+אותי' + NAV_POLITE_SUFFIX + '\\s+(הביתה)', 'i');
+
+  // --- Group 7: "I want/need to get to" ---
+  const nav7 = new RegExp(
+    'אני\\s+(?:רוצה|צריך|צריכה)\\s+(?:להגיע|לנסוע|לנווט)' +
+    '\\s+(?:ל|אל\\s+)(.+)', 'i');
+  const nav7_home = new RegExp(
+    'אני\\s+(?:רוצה|צריך|צריכה)\\s+(?:להגיע|לנסוע|לנווט)\\s+(הביתה)', 'i');
+
+  // --- Group 8: Keyword-only + destination ---
+  const nav8_kw_home = new RegExp(NAV_APP_KW + '\\s+(הביתה)', 'i');
+  const nav8_kw = new RegExp(
+    '(?:מסלול|כיוונים|הכוונה|ניווט|וויז|ווייז|ויז)\\s+(?:ל|אל\\s+)(.+)', 'i');
+
+  // Match in order: most specific first
+  const navMatch =
+    // Group 6: nav-app + destination (always NAVIGATE)
+    nav6_waze_verb.exec(text) || nav6_waze_verb_home.exec(text) ||
+    nav6_open_app.exec(text) || nav6_open_app_home.exec(text) ||
+    nav6_put.exec(text) || nav6_put_home.exec(text) ||
+    nav6_start.exec(text) || nav6_start_home.exec(text) ||
+    // Group 4: "show me the way"
+    nav4.exec(text) || nav4_home.exec(text) ||
+    // Group 3: "how to get to"
+    nav3.exec(text) || nav3_home.exec(text) ||
+    // Group 1: direct navigate verbs
+    nav1.exec(text) || nav1_home.exec(text) ||
+    // Group 5: drive/go
+    nav5.exec(text) || nav5_home.exec(text) ||
+    // Group 2: "take me to" (broad — has guard below)
+    nav2.exec(text) || nav2_home.exec(text) ||
+    // Group 7: want/need
+    nav7.exec(text) || nav7_home.exec(text) ||
+    // Group 8: keyword + destination (broadest, last)
+    nav8_kw_home.exec(text) || nav8_kw.exec(text);
+
+  if (navMatch) {
+    const destination = cleanDestination(navMatch[1]);
+
+    if (destination.length > 0) {
+      // Guard for Group 2: if destination is ONLY a nav-app name → fall through to OPEN_APP
+      const NAV_APP_ONLY = /^(?:וויז|ווייז|ויז|וויס|waze|גוגל\s*מפות|google\s*maps)$/i;
+      const matchedNav2 = nav2.exec(text);
+      const matchedNav2Home = nav2_home.exec(text);
+      const isGroup2 = (matchedNav2 && matchedNav2[0] === navMatch[0]) ||
+                        (matchedNav2Home && matchedNav2Home[0] === navMatch[0]);
+
+      if (!(isGroup2 && NAV_APP_ONLY.test(destination))) {
+        return {
+          intent: 'NAVIGATE',
+          contact: null,
+          message: null,
+          appName: null,
+          destination,
+          navApp: extractNavApp(text),
+          reminderText: null,
+          reminderTime: null,
+          count: null,
+          source: 'regex',
+        };
+      }
+    }
+  }
+
+  // 8. OPEN_APP ─────────────────────────────────────────────────────────
   // NOTE: WhatsApp verbs (תרשום/תכתוב/תגיד/תודיע/תעביר alone) are EXCLUDED
   // to avoid conflicts with SEND_WHATSAPP (position 1).
 
@@ -327,6 +505,8 @@ function parseIntentWithRegex(text: string): ParsedIntent {
       contact: null,
       message: null,
       appName: cleanAppName(openAppMatch[1]),
+      destination: null,
+      navApp: null,
       reminderText: null,
       reminderTime: null,
       count: null,
@@ -354,6 +534,8 @@ function buildReminderIntent(rawText: string, rawTime: string | null): ParsedInt
     contact: null,
     message: null,
     appName: null,
+    destination: null,
+    navApp: null,
     reminderText: text.trim(),
     reminderTime: rawTime?.trim() ?? null,
     count: null,

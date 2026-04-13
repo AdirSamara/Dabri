@@ -31,6 +31,7 @@ const INTENT_LABELS: Record<Intent, string> = {
   READ_WHATSAPP: 'קריאת וואטסאפ',
   READ_NOTIFICATIONS: 'קריאת התראות',
   SET_REMINDER: 'הגדרת תזכורת',
+  NAVIGATE: 'ניווט',
   OPEN_APP: 'פתיחת אפליקציה',
   UNKNOWN: 'לא ידוע',
 };

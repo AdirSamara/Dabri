@@ -5,6 +5,7 @@ import com.dabri.assistant.AssistantPackage
 import com.dabri.phone.PhonePackage
 import com.dabri.reminder.ReminderPackage
 import com.dabri.applauncher.AppLauncherPackage
+import com.dabri.navigation.NavigationPackage
 import com.dabri.sms.SmsPackage
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
@@ -24,6 +25,7 @@ class MainApplication : Application(), ReactApplication {
           add(AssistantPackage())
           add(ReminderPackage())
           add(AppLauncherPackage())
+          add(NavigationPackage())
         },
     )
   }
