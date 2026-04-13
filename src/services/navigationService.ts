@@ -55,13 +55,13 @@ async function handleNavigate(intent: ParsedIntent): Promise<ActionResult> {
       if (app === 'waze') {
         const installed = await NavigationBridge.isAppInstalled(WAZE_PACKAGE);
         if (!installed) continue;
-        // Waze favorite= resolves any saved favorite by name (home, work,
-        // custom ones like "מכון כושר"). For addresses that aren't favorites,
-        // Waze opens and the user can search — Google Maps fallback also works.
-        const wazeFav = isHome ? 'home'
-                      : isWork ? 'work'
-                      : resolvedDest;
-        await NavigationBridge.navigateWithWazeFavorite(wazeFav);
+        if (isHome) {
+          await NavigationBridge.navigateWithWazeFavorite('home');
+        } else if (isWork) {
+          await NavigationBridge.navigateWithWazeFavorite('work');
+        } else {
+          await NavigationBridge.navigateWithWaze(resolvedDest);
+        }
         return { success: true, message: `מנווט ל${resolvedDest} דרך Waze` };
       }
 
