@@ -3,6 +3,7 @@ import { registerCallHandlers } from './callService';
 import { registerNotificationHandlers, setupNotificationListener } from './notificationService';
 import { registerWhatsAppHandlers } from './whatsappService';
 import { registerAppLauncherHandlers } from './appLauncherService';
+import { loadInstalledApps } from './appNameResolver';
 import { registerReminderHandlers, initReminderChannel } from './reminderService';
 
 export function initializeServices(): void {
@@ -16,4 +17,8 @@ export function initializeServices(): void {
 
   // Initialize reminder notification channel
   initReminderChannel();
+
+  // Pre-warm installed apps cache (fire and forget)
+  loadInstalledApps();
+
 }

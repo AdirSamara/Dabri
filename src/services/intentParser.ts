@@ -57,6 +57,27 @@ function smsCount(text: string): number {
   return 5;
 }
 
+/** Strip Hebrew grammar particles from a captured app name. */
+function cleanAppName(raw: string): string {
+  let name = raw.trim();
+  // Strip leading את ה / את / ה (definite article)
+  name = name.replace(/^את\s+ה/, '');
+  name = name.replace(/^את\s+/, '');
+  name = name.replace(/^ה(?=[א-ת])/, '');
+  // Strip leading ל (residual from lamed-verbs)
+  name = name.replace(/^ל(?=[א-ת])/, '');
+  // Strip "לי" at start
+  name = name.replace(/^לי\s+/, '');
+  // Strip app-noun prefixes (belt-and-suspenders with regex)
+  name = name.replace(/^אפליקציית\s+/, '');
+  name = name.replace(/^אפליקציה\s+(?:של\s+)?/, '');
+  name = name.replace(/^יישום\s+/, '');
+  name = name.replace(/^תוכנת\s+/, '');
+  // Strip trailing בבקשה
+  name = name.replace(/\s+בבקשה$/, '');
+  return name.trim();
+}
+
 function parseIntentWithRegex(text: string): ParsedIntent {
   console.log('[intentParser] Using REGEX parser for:', text);
 
@@ -243,14 +264,69 @@ function parseIntentWithRegex(text: string): ParsedIntent {
     };
   }
 
-  // 7. OPEN_APP
-  const openAppMatch = text.match(/תפתח\s+(.+)/);
+  // 7. OPEN_APP ─────────────────────────────────────────────────────────
+  // NOTE: WhatsApp verbs (תרשום/תכתוב/תגיד/תודיע/תעביר alone) are EXCLUDED
+  // to avoid conflicts with SEND_WHATSAPP (position 1).
+
+  // Direct verbs: open, activate, run, bring up, turn on
+  const OPEN_DIRECT =
+    '(?:תפתח|תפתחי|פתח|פתחי|לפתוח' +
+    '|תפעיל|תפעילי|הפעל|הפעילי|להפעיל' +
+    '|תריץ|תריצי|הרץ|הריצי|להריץ' +
+    '|תעלה|תעלי|העלה|להעלות' +
+    '|תדליק|תדליקי|הדלק|הדליקי|להדליק)';
+
+  // Lamed-prefix verbs: enter, switch to
+  const OPEN_LAMED =
+    '(?:תיכנס|תיכנסי|היכנס|היכנסי|להיכנס' +
+    '|תעבור|תעברי|עבור|עברי|לעבור)';
+
+  const OA_POLITE = '(?:(?:בבקשה|אפשר|תוכל|תוכלי)\\s+)?';
+  const OA_PARTICLES = '(?:\\s+לי)?(?:\\s+את)?(?:\\s+ה)?';
+  const APP_NOUN = '(?:אפליקציית\\s+|אפליקציה\\s+(?:של\\s+)?|יישום\\s+|תוכנת\\s+)?';
+
+  // Pattern A: direct verbs + optional particles + app name
+  const openA = new RegExp(
+    OA_POLITE + OPEN_DIRECT + OA_PARTICLES + '\\s+' + APP_NOUN + '(.+)', 'i',
+  );
+
+  // Pattern B: lamed-prefix verbs + ל/אל + app name
+  const openB = new RegExp(
+    OA_POLITE + OPEN_LAMED + '(?:\\s+לי)?\\s+(?:ל|אל\\s+)' + APP_NOUN + '(.+)', 'i',
+  );
+
+  // Pattern C: "show me" — תראה/תראי + לי + את + app (guard: not הודע)
+  const openC = new RegExp(
+    OA_POLITE + '(?:תראה|תראי)\\s+לי\\s+את\\s+(?:ה)?' + APP_NOUN + '((?!הודע).+)', 'i',
+  );
+
+  // Pattern D: "take me to" — requires אותי to avoid SEND_WHATSAPP conflict
+  const openD = new RegExp(
+    OA_POLITE + '(?:תיקח|קח|קחי|תיקחי|תעביר|תעבירי)\\s+אותי\\s+(?:ל|אל\\s+)' + APP_NOUN + '(.+)', 'i',
+  );
+
+  // Pattern E: polite + infinitive (direct) + particles + app
+  const OPEN_INF = '(?:לפתוח|להפעיל|להריץ|להעלות|להדליק)';
+  const openE = new RegExp(
+    '(?:אפשר|תוכל|תוכלי)\\s+' + OPEN_INF + OA_PARTICLES + '\\s+' + APP_NOUN + '(.+)', 'i',
+  );
+
+  // Pattern F: polite + infinitive (lamed) + ל + app
+  const OPEN_INF_L = '(?:להיכנס|לעבור)';
+  const openF = new RegExp(
+    '(?:אפשר|תוכל|תוכלי)\\s+' + OPEN_INF_L + '(?:\\s+לי)?\\s+(?:ל|אל\\s+)' + APP_NOUN + '(.+)', 'i',
+  );
+
+  const openAppMatch =
+    openA.exec(text) || openB.exec(text) || openC.exec(text) ||
+    openD.exec(text) || openE.exec(text) || openF.exec(text);
+
   if (openAppMatch) {
     return {
       intent: 'OPEN_APP',
       contact: null,
       message: null,
-      appName: openAppMatch[1].trim(),
+      appName: cleanAppName(openAppMatch[1]),
       reminderText: null,
       reminderTime: null,
       count: null,

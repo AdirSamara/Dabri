@@ -53,10 +53,12 @@ function matchDisambiguationChoice(text: string, candidates: Contact[]): Contact
   return null;
 }
 
-function buildDisambiguationMessage(candidates: Contact[]): string {
+function buildDisambiguationMessage(candidates: Contact[], intentType?: string): string {
+  const isApp = intentType === 'OPEN_APP';
   const count = candidates.length === 2 ? 'שני' : 'שלושה';
+  const entityType = isApp ? 'אפליקציות' : 'אנשי קשר';
   const options = candidates.map((c, i) => `${OPTION_LABELS[i]}: ${c.displayName}`).join('. ');
-  return `מצאתי ${count} אנשי קשר. ${options}. בחר אפשרות.`;
+  return `מצאתי ${count} ${entityType}. ${options}. בחר אפשרות.`;
 }
 
 export function HomeScreen(): React.JSX.Element {
@@ -190,7 +192,9 @@ export function HomeScreen(): React.JSX.Element {
           const selected = matchDisambiguationChoice(text, pending.candidates);
           if (selected) {
             useDabriStore.getState().setPendingDisambiguation(null);
-            const resolvedIntent = { ...pending.intent, contact: selected.displayName };
+            const resolvedIntent = pending.intent.intent === 'OPEN_APP'
+              ? { ...pending.intent, appName: selected.displayName }
+              : { ...pending.intent, contact: selected.displayName };
             const result = await dispatchAction(resolvedIntent);
             updateConversation(pending.conversationId, {
               result: result.message,
@@ -238,7 +242,7 @@ export function HomeScreen(): React.JSX.Element {
             candidates,
             correctedMessage,
           });
-          const ttsMsg = buildDisambiguationMessage(candidates);
+          const ttsMsg = buildDisambiguationMessage(candidates, originalIntent.intent);
           updateConversation(id, { result: ttsMsg, status: 'pending' });
           speak(ttsMsg);
           return;
@@ -325,7 +329,9 @@ export function HomeScreen(): React.JSX.Element {
       const pending = useDabriStore.getState().pendingDisambiguation;
       if (!pending) { return; }
       useDabriStore.getState().setPendingDisambiguation(null);
-      const resolvedIntent = { ...pending.intent, contact: contact.displayName };
+      const resolvedIntent = pending.intent.intent === 'OPEN_APP'
+        ? { ...pending.intent, appName: contact.displayName }
+        : { ...pending.intent, contact: contact.displayName };
       const result = await dispatchAction(resolvedIntent);
       updateConversation(pending.conversationId, {
         result: result.message,
