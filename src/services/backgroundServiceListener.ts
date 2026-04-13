@@ -18,12 +18,18 @@ const COMMAND_TIMEOUT_MS = 12000;
 // Track the latest command to discard stale ones
 let commandSequence = 0;
 
+let listenerSetUp = false;
+
 export function setupBackgroundServiceListener(): void {
-  if (!NativeModules.BackgroundServiceModule) {
+  if (!NativeModules.BackgroundServiceModule || listenerSetUp) {
     return;
   }
+  listenerSetUp = true;
 
-  const emitter = new NativeEventEmitter(NativeModules.BackgroundServiceModule);
+  // Pass null to NativeEventEmitter — we only use RCTDeviceEventEmitter globally.
+  // Passing the module caused it to call addListener/removeListeners on the
+  // native side, which interfered with audio system initialization.
+  const emitter = new NativeEventEmitter(null as any);
 
   emitter.addListener(
     'backgroundServiceStateChanged',
