@@ -61,6 +61,11 @@ export function invalidateAppCache(): void {
 
 // ── Category Map (system intents, NOT specific apps) ─────────────────
 
+// ── Self-launch detection ────────────────────────────────────────────
+// The app excludes itself from getInstalledApps(), so "תפתח דברי"
+// would fuzzy-match to the wrong app. Handle it explicitly.
+const SELF_NAMES = ['דברי', 'dabri', 'דאברי'];
+
 const CATEGORY_MAP: Record<string, string> = {
   'מצלמה':            'camera',
   'צילום':            'camera',
@@ -284,6 +289,19 @@ export async function resolveAppName(rawName: string): Promise<AppResolveResult>
 
   const normalized = normalizeHebrew(rawName);
   const empty: AppResolveResult = { matches: [], bestTier: AppMatchTier.NONE, category: null };
+
+  // ── Step 0: Self-launch (Dabri) ──
+  if (SELF_NAMES.includes(normalized)) {
+    return {
+      matches: [{
+        packageName: 'com.dabri',
+        label: 'דברי',
+        tier: AppMatchTier.EXACT,
+      }],
+      bestTier: AppMatchTier.EXACT,
+      category: null,
+    };
+  }
 
   // ── Step 1: Category map (system intents) ──
   const category = CATEGORY_MAP[normalized];
