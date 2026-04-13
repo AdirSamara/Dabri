@@ -2,7 +2,6 @@ package com.dabri.backgroundservice
 
 import android.content.Context
 import android.content.Intent
-import android.media.AudioManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -15,8 +14,11 @@ import android.speech.SpeechRecognizer
  *
  * Key design: The recognizer is created once and reused across listening cycles.
  * We only call startListening() again after each result/error — never destroy
- * and recreate. This matches how Miri keeps the mic open continuously
- * (green dot stays on).
+ * and recreate. This matches how Miri keeps the mic open continuously.
+ *
+ * Note: We do NOT mute device streams to suppress the SpeechRecognizer beep.
+ * Muting STREAM_MUSIC breaks TTS playback. The single-recognizer approach
+ * already minimizes beeps (only one on initial start, not on restarts).
  */
 class WakeWordManager(
     private val context: Context,
@@ -27,9 +29,6 @@ class WakeWordManager(
     private var wakePhrase = "היי דברי"
     private var matchVariants: List<String> = getMatchVariants(wakePhrase)
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-    private var savedNotificationVolume = 0
-    private var savedMusicVolume = 0
 
     companion object {
         private const val RELISTEN_DELAY_MS = 100L
@@ -44,8 +43,6 @@ class WakeWordManager(
         matchVariants = getMatchVariants(phrase)
         isActive = true
 
-        muteBeep()
-
         // Create the recognizer ONCE
         mainHandler.post {
             try {
@@ -53,7 +50,6 @@ class WakeWordManager(
                 recognizer?.setRecognitionListener(createListener())
                 beginListening()
             } catch (_: Exception) {
-                // If creation fails, retry after delay
                 mainHandler.postDelayed({ if (isActive) start(phrase) }, BUSY_RELISTEN_DELAY_MS)
             }
         }
@@ -68,7 +64,6 @@ class WakeWordManager(
             recognizer?.destroy()
         } catch (_: Exception) {}
         recognizer = null
-        restoreBeep()
     }
 
     fun isRunning(): Boolean = isActive
@@ -96,24 +91,6 @@ class WakeWordManager(
     private fun scheduleRelisten(delayMs: Long) {
         if (!isActive) return
         mainHandler.postDelayed({ beginListening() }, delayMs)
-    }
-
-    // ── Mute/restore beep sounds ────────────────────────────────────
-
-    private fun muteBeep() {
-        try {
-            savedNotificationVolume = audioManager.getStreamVolume(AudioManager.STREAM_NOTIFICATION)
-            savedMusicVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-            audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, 0, 0)
-            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, 0, 0)
-        } catch (_: Exception) {}
-    }
-
-    private fun restoreBeep() {
-        try {
-            audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, savedNotificationVolume, 0)
-            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, savedMusicVolume, 0)
-        } catch (_: Exception) {}
     }
 
     // ── Recognition listener ────────────────────────────────────────
@@ -150,7 +127,6 @@ class WakeWordManager(
                 when (error) {
                     SpeechRecognizer.ERROR_NO_MATCH,
                     SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> {
-                        // Normal — user wasn't speaking. Re-listen immediately.
                         scheduleRelisten(RELISTEN_DELAY_MS)
                     }
                     SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> {
@@ -158,7 +134,6 @@ class WakeWordManager(
                     }
                     SpeechRecognizer.ERROR_CLIENT,
                     SpeechRecognizer.ERROR_AUDIO -> {
-                        // Recognizer may be in bad state — recreate it
                         recreateRecognizer()
                     }
                     else -> {
@@ -170,7 +145,7 @@ class WakeWordManager(
     }
 
     /**
-     * Recreate the recognizer if it enters a bad state (ERROR_CLIENT, ERROR_AUDIO).
+     * Recreate the recognizer if it enters a bad state.
      * This is the only path that destroys and recreates.
      */
     private fun recreateRecognizer() {
@@ -197,7 +172,6 @@ class WakeWordManager(
         for (variant in matchVariants) {
             if (normalized.startsWith(variant)) {
                 val remaining = normalized.removePrefix(variant).trim()
-                // Wake word detected — stop, restore audio, notify
                 isActive = false
                 mainHandler.removeCallbacksAndMessages(null)
                 try {
@@ -206,7 +180,6 @@ class WakeWordManager(
                     recognizer?.destroy()
                 } catch (_: Exception) {}
                 recognizer = null
-                restoreBeep()
                 mainHandler.post { onWakeWordDetected(remaining) }
                 return true
             }

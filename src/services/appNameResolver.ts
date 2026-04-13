@@ -87,6 +87,7 @@ const CATEGORY_MAP: Record<string, string> = {
 // NOT package names — these are search terms matched against installed labels.
 
 const FALLBACK_MAP: Record<string, string> = {
+  // Utilities
   'שעון':        'clock',
   'שעון מעורר':  'alarm',
   'טיימר':       'timer',
@@ -99,7 +100,44 @@ const FALLBACK_MAP: Record<string, string> = {
   'אימייל':      'email',
   'מפות':        'maps',
   'אינטרנט':     'internet',
+  // Social & messaging
+  'פייסבוק':     'facebook',
+  'פייס':        'facebook',
+  'אינסטגרם':    'instagram',
+  'אינסטה':      'instagram',
+  'טיקטוק':      'tiktok',
+  'טלגרם':       'telegram',
+  'סנאפצט':      'snapchat',
+  'סנאפ':        'snapchat',
+  'לינקדאין':    'linkedin',
+  'לינקד אין':   'linkedin',
+  'טוויטר':      'twitter',
   'אקס':         'x',
+  'רדיט':        'reddit',
+  'פינטרסט':     'pinterest',
+  'דיסקורד':     'discord',
+  'תרדס':        'threads',
+  // Video & music
+  'יוטיוב':      'youtube',
+  'יו טיוב':     'youtube',
+  'נטפליקס':     'netflix',
+  'ספוטיפיי':    'spotify',
+  'ספוטיפי':     'spotify',
+  'טוויץ':       'twitch',
+  // Shopping & food
+  'אמזון':       'amazon',
+  'אליאקספרס':   'aliexpress',
+  'שיין':        'shein',
+  'וולט':        'wolt',
+  'גט':          'gett',
+  // Productivity
+  'גוגל':        'google',
+  'כרום':        'chrome',
+  'גימייל':      'gmail',
+  'ג׳ימייל':     'gmail',
+  'דרייב':       'drive',
+  'זום':         'zoom',
+  'טימס':        'teams',
 };
 
 // ── Hebrew → Latin Phonetic Transliteration ──────────────────────────
