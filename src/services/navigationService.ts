@@ -1,0 +1,91 @@
+import { registerHandler } from './actionDispatcher';
+import type { ActionResult } from './actionDispatcher';
+import type { ParsedIntent } from '../types';
+import NavigationBridge from '../native/NavigationBridge';
+import { useDabriStore } from '../store';
+
+const HOME_KEYWORDS = ['הביתה', 'בית', 'לבית', 'הבית', 'הבית שלי'];
+const WORK_KEYWORDS = ['לעבודה', 'עבודה', 'למשרד', 'משרד', 'העבודה', 'המשרד'];
+const WAZE_PACKAGE = 'com.waze';
+const GMAPS_PACKAGE = 'com.google.android.apps.maps';
+
+async function handleNavigate(intent: ParsedIntent): Promise<ActionResult> {
+  if (!NavigationBridge) {
+    return { success: false, message: 'מודול ניווט אינו זמין' };
+  }
+
+  const destination = intent.destination;
+  if (!destination) {
+    return { success: false, message: 'לא הבנתי לאן לנווט' };
+  }
+
+  const store = useDabriStore.getState();
+  let resolvedDest = destination;
+  let isHome = false;
+  let isWork = false;
+
+  // Resolve home/work keywords to stored addresses
+  if (HOME_KEYWORDS.some(kw => destination === kw || destination.includes(kw))) {
+    isHome = true;
+    if (!store.homeAddress) {
+      return { success: false, message: 'לא הוגדרה כתובת בית. ניתן להגדיר בהגדרות הניווט' };
+    }
+    resolvedDest = store.homeAddress;
+  } else if (WORK_KEYWORDS.some(kw => destination === kw || destination.includes(kw))) {
+    isWork = true;
+    if (!store.workAddress) {
+      return { success: false, message: 'לא הוגדרה כתובת עבודה. ניתן להגדיר בהגדרות הניווט' };
+    }
+    resolvedDest = store.workAddress;
+  }
+
+  // Determine preferred nav app (explicit request overrides store setting)
+  let preferredApp: 'waze' | 'google_maps' = store.preferredNavApp;
+  if (intent.navApp) {
+    preferredApp = intent.navApp;
+  }
+
+  // Build fallback chain: preferred → other → generic geo
+  const fallback: ('waze' | 'google_maps' | 'geo')[] =
+    preferredApp === 'waze'
+      ? ['waze', 'google_maps', 'geo']
+      : ['google_maps', 'waze', 'geo'];
+
+  for (const app of fallback) {
+    try {
+      if (app === 'waze') {
+        const installed = await NavigationBridge.isAppInstalled(WAZE_PACKAGE);
+        if (!installed) continue;
+        if (isHome) {
+          await NavigationBridge.navigateWithWazeFavorite('home');
+        } else if (isWork) {
+          await NavigationBridge.navigateWithWazeFavorite('work');
+        } else {
+          await NavigationBridge.navigateWithWaze(resolvedDest);
+        }
+        return { success: true, message: `מנווט ל${resolvedDest} דרך Waze` };
+      }
+
+      if (app === 'google_maps') {
+        const installed = await NavigationBridge.isAppInstalled(GMAPS_PACKAGE);
+        if (!installed) continue;
+        await NavigationBridge.navigateWithGoogleMaps(resolvedDest);
+        return { success: true, message: `מנווט ל${resolvedDest} דרך Google Maps` };
+      }
+
+      if (app === 'geo') {
+        await NavigationBridge.navigateWithGeo(resolvedDest);
+        return { success: true, message: `מנווט ל${resolvedDest}` };
+      }
+    } catch (error) {
+      console.log(`[Navigation] ${app} failed:`, error);
+      continue;
+    }
+  }
+
+  return { success: false, message: 'לא נמצאה אפליקציית ניווט במכשיר' };
+}
+
+export function registerNavigationHandlers(): void {
+  registerHandler('NAVIGATE', handleNavigate);
+}

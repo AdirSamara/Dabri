@@ -77,7 +77,7 @@ export function SettingsScreen(): React.JSX.Element {
   }), [theme]);
 
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
-  const { geminiApiKey, ttsSpeed, reminders, silenceTimeout } = useDabriStore();
+  const { geminiApiKey, ttsSpeed, reminders, silenceTimeout, preferredNavApp } = useDabriStore();
   const [isDefaultAssistant, setIsDefaultAssistant] = useState(false);
 
   const checkAssistantStatus = async () => {
@@ -133,6 +133,11 @@ export function SettingsScreen(): React.JSX.Element {
         title="זמן שתיקה לעצירה"
         subtitle={silenceTimeout === 1000 ? '1 שנייה' : silenceTimeout === 1500 ? '1.5 שניות' : '2 שניות'}
         onPress={() => navigation.navigate('SilenceTimeoutSettings')}
+      />
+      <SettingsRow
+        title="ניווט"
+        subtitle={preferredNavApp === 'waze' ? 'Waze' : 'Google Maps'}
+        onPress={() => navigation.navigate('NavigationSettings')}
       />
       <SettingsRow
         title="אודות"

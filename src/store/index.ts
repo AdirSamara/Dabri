@@ -34,6 +34,11 @@ interface DabriState {
   silenceTimeout: number; // ms after last speech to auto-stop (1000, 1500, 2000)
   contactAliases: Record<string, string>;
 
+  // Navigation settings (persisted)
+  preferredNavApp: 'waze' | 'google_maps';
+  homeAddress: string;
+  workAddress: string;
+
   // Actions
   setVoiceStatus: (status: VoiceStatus) => void;
   setLastTranscript: (transcript: string) => void;
@@ -53,6 +58,9 @@ interface DabriState {
   setSilenceTimeout: (ms: number) => void;
   setContactAlias: (name: string, alias: string) => void;
   removeContactAlias: (name: string) => void;
+  setPreferredNavApp: (app: 'waze' | 'google_maps') => void;
+  setHomeAddress: (address: string) => void;
+  setWorkAddress: (address: string) => void;
 }
 
 export const useDabriStore = create<DabriState>()(
@@ -70,6 +78,9 @@ export const useDabriStore = create<DabriState>()(
       isDarkMode: false,
       silenceTimeout: 1000,
       contactAliases: {},
+      preferredNavApp: 'waze',
+      homeAddress: '',
+      workAddress: '',
 
       // Actions
       setVoiceStatus: (status) => set({ voiceStatus: status }),
@@ -153,6 +164,10 @@ export const useDabriStore = create<DabriState>()(
           const { [name]: _removed, ...rest } = state.contactAliases;
           return { contactAliases: rest };
         }),
+
+      setPreferredNavApp: (app) => set({ preferredNavApp: app }),
+      setHomeAddress: (address) => set({ homeAddress: address }),
+      setWorkAddress: (address) => set({ workAddress: address }),
     }),
     {
       name: 'dabri-store',
@@ -164,6 +179,9 @@ export const useDabriStore = create<DabriState>()(
         isDarkMode: state.isDarkMode,
         silenceTimeout: state.silenceTimeout,
         contactAliases: state.contactAliases,
+        preferredNavApp: state.preferredNavApp,
+        homeAddress: state.homeAddress,
+        workAddress: state.workAddress,
       }),
       onRehydrateStorage: () => (state, error) => {
         if (error) {
