@@ -55,7 +55,7 @@ class BubbleManager(
         private const val TAP_DEBOUNCE_MS = 500L
         private const val LONG_PRESS_MS = 600L
         private const val SNAP_DURATION_MS = 250L
-        private const val DISMISS_ZONE_SIZE_DP = 48
+        private const val DISMISS_ZONE_SIZE_DP = 56
         private const val DISMISS_ZONE_RADIUS_DP = 60
     }
 
@@ -148,15 +148,17 @@ class BubbleManager(
         val zone = FrameLayout(context).apply {
             val bg = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#44FFFFFF"))
-                setStroke(dpToPx(2), Color.parseColor("#88FFFFFF"))
+                setColor(Color.parseColor("#CC333333"))
+                setStroke(dpToPx(2), Color.parseColor("#CCFFFFFF"))
             }
             background = bg
+            elevation = dpToPx(12).toFloat()
 
             val xText = TextView(context).apply {
                 text = "✕"
                 setTextColor(Color.WHITE)
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
                 gravity = Gravity.CENTER
                 layoutParams = FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
@@ -219,11 +221,11 @@ class BubbleManager(
             isNearDismissZone = nearNow
             val bg = dismissZoneView?.background as? GradientDrawable ?: return
             if (nearNow) {
-                bg.setColor(Color.parseColor("#66FF5252"))
-                bg.setStroke(dpToPx(2), Color.parseColor("#FFFF5252"))
+                bg.setColor(Color.parseColor("#EEF44336"))
+                bg.setStroke(dpToPx(2), Color.WHITE)
             } else {
-                bg.setColor(Color.parseColor("#44FFFFFF"))
-                bg.setStroke(dpToPx(2), Color.parseColor("#88FFFFFF"))
+                bg.setColor(Color.parseColor("#CC333333"))
+                bg.setStroke(dpToPx(2), Color.parseColor("#CCFFFFFF"))
             }
         }
     }
