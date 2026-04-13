@@ -80,6 +80,11 @@ class WakeWordManager(
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, "he-IL")
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                // Maximize listening duration to avoid frequent restarts (and beeps).
+                // Without these, the recognizer times out after ~5s of silence.
+                putExtra("android.speech.extra.SPEECH_INPUT_MINIMUM_LENGTH_MILLIS", 30000L)
+                putExtra("android.speech.extra.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", 15000L)
+                putExtra("android.speech.extra.SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS", 15000L)
             }
             recognizer?.startListening(intent)
         } catch (_: Exception) {
