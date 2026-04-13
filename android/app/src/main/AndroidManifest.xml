@@ -35,6 +35,13 @@
     <!-- Request battery optimization exemption (Samsung One UI) -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
+    <!-- Background voice service -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+
+    <!-- Floating bubble overlay -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
     <!-- Required on Android 11+ to detect WhatsApp installation via Linking.canOpenURL -->
     <queries>
         <package android:name="com.whatsapp" />
@@ -81,6 +88,31 @@
         </intent-filter>
         <meta-data android:name="com.android.systemui.action_assist_icon" android:resource="@mipmap/ic_launcher" />
       </activity>
+
+      <!-- Voice assistant service -->
+      <service
+          android:name=".service.DabriVoiceService"
+          android:foregroundServiceType="microphone"
+          android:stopWithTask="false"
+          android:enabled="true"
+          android:exported="false" />
+
+      <!-- Service notification action receiver -->
+      <receiver
+          android:name=".service.ServiceActionReceiver"
+          android:enabled="true"
+          android:exported="false" />
+
+      <!-- Service boot/update receiver -->
+      <receiver
+          android:name=".service.ServiceBootReceiver"
+          android:enabled="true"
+          android:exported="true">
+          <intent-filter>
+              <action android:name="android.intent.action.BOOT_COMPLETED" />
+              <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+          </intent-filter>
+      </receiver>
 
       <!-- Reminder receivers -->
       <receiver

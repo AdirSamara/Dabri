@@ -77,7 +77,7 @@ export function SettingsScreen(): React.JSX.Element {
   }), [theme]);
 
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
-  const { geminiApiKey, ttsSpeed, reminders, silenceTimeout, preferredNavApp } = useDabriStore();
+  const { geminiApiKey, ttsSpeed, reminders, silenceTimeout, preferredNavApp, isBackgroundServiceEnabled } = useDabriStore();
   const [isDefaultAssistant, setIsDefaultAssistant] = useState(false);
 
   const checkAssistantStatus = async () => {
@@ -138,6 +138,12 @@ export function SettingsScreen(): React.JSX.Element {
         title="ניווט"
         subtitle={preferredNavApp === 'waze' ? 'Waze' : 'Google Maps'}
         onPress={() => navigation.navigate('NavigationSettings')}
+      />
+      <SettingsRow
+        title="שירות רקע"
+        subtitle={isBackgroundServiceEnabled ? 'פעיל' : 'כבוי'}
+        dotColor={isBackgroundServiceEnabled ? '#4CAF50' : '#F44336'}
+        onPress={() => navigation.navigate('BackgroundServiceSettings')}
       />
       <SettingsRow
         title="אודות"

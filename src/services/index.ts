@@ -6,6 +6,7 @@ import { registerAppLauncherHandlers } from './appLauncherService';
 import { registerNavigationHandlers } from './navigationService';
 import { loadInstalledApps } from './appNameResolver';
 import { registerReminderHandlers, initReminderChannel } from './reminderService';
+import { setupServiceSettingsSync } from './backgroundServiceSync';
 
 export function initializeServices(): void {
   registerSmsHandlers();
@@ -23,4 +24,6 @@ export function initializeServices(): void {
   // Pre-warm installed apps cache (fire and forget)
   loadInstalledApps();
 
+  // Sync settings to native background service SharedPreferences
+  setupServiceSettingsSync();
 }

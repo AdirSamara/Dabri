@@ -39,6 +39,13 @@ interface DabriState {
   homeAddress: string;
   workAddress: string;
 
+  // Background service settings (persisted)
+  isBackgroundServiceEnabled: boolean;
+  wakeWordSensitivity: 'low' | 'medium' | 'high';
+  autoStartOnBoot: boolean;
+  showOnLockScreen: boolean;
+  bubblePosition: { x: number; y: number } | null;
+
   // Actions
   setVoiceStatus: (status: VoiceStatus) => void;
   setLastTranscript: (transcript: string) => void;
@@ -61,6 +68,11 @@ interface DabriState {
   setPreferredNavApp: (app: 'waze' | 'google_maps') => void;
   setHomeAddress: (address: string) => void;
   setWorkAddress: (address: string) => void;
+  setBackgroundServiceEnabled: (enabled: boolean) => void;
+  setWakeWordSensitivity: (sensitivity: 'low' | 'medium' | 'high') => void;
+  setAutoStartOnBoot: (enabled: boolean) => void;
+  setShowOnLockScreen: (enabled: boolean) => void;
+  setBubblePosition: (pos: { x: number; y: number } | null) => void;
 }
 
 export const useDabriStore = create<DabriState>()(
@@ -81,6 +93,12 @@ export const useDabriStore = create<DabriState>()(
       preferredNavApp: 'waze',
       homeAddress: '',
       workAddress: '',
+
+      isBackgroundServiceEnabled: false,
+      wakeWordSensitivity: 'medium',
+      autoStartOnBoot: false,
+      showOnLockScreen: false,
+      bubblePosition: null,
 
       // Actions
       setVoiceStatus: (status) => set({ voiceStatus: status }),
@@ -168,6 +186,11 @@ export const useDabriStore = create<DabriState>()(
       setPreferredNavApp: (app) => set({ preferredNavApp: app }),
       setHomeAddress: (address) => set({ homeAddress: address }),
       setWorkAddress: (address) => set({ workAddress: address }),
+      setBackgroundServiceEnabled: (enabled) => set({ isBackgroundServiceEnabled: enabled }),
+      setWakeWordSensitivity: (sensitivity) => set({ wakeWordSensitivity: sensitivity }),
+      setAutoStartOnBoot: (enabled) => set({ autoStartOnBoot: enabled }),
+      setShowOnLockScreen: (enabled) => set({ showOnLockScreen: enabled }),
+      setBubblePosition: (pos) => set({ bubblePosition: pos }),
     }),
     {
       name: 'dabri-store',
@@ -182,6 +205,11 @@ export const useDabriStore = create<DabriState>()(
         preferredNavApp: state.preferredNavApp,
         homeAddress: state.homeAddress,
         workAddress: state.workAddress,
+        isBackgroundServiceEnabled: state.isBackgroundServiceEnabled,
+        wakeWordSensitivity: state.wakeWordSensitivity,
+        autoStartOnBoot: state.autoStartOnBoot,
+        showOnLockScreen: state.showOnLockScreen,
+        bubblePosition: state.bubblePosition,
       }),
       onRehydrateStorage: () => (state, error) => {
         if (error) {

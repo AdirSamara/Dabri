@@ -116,4 +116,10 @@ dependencies {
     } else {
         implementation jscFlavor
     }
+
+    // OkHttp for Gemini API calls from native service
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // Kotlin coroutines for async pipeline
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 }

@@ -12,6 +12,7 @@ import { AboutScreen } from './src/screens/AboutScreen';
 import { RemindersScreen } from './src/screens/RemindersScreen';
 import { SilenceTimeoutSettingsScreen } from './src/screens/SilenceTimeoutSettingsScreen';
 import { NavigationSettingsScreen } from './src/screens/NavigationSettingsScreen';
+import { BackgroundServiceSettingsScreen } from './src/screens/BackgroundServiceSettingsScreen';
 import { initializeServices } from './src/services';
 import { useDabriStore } from './src/store';
 import { lightTheme, darkTheme } from './src/utils/theme';
@@ -33,6 +34,7 @@ export type RootStackParamList = {
   Reminders: undefined;
   SilenceTimeoutSettings: undefined;
   NavigationSettings: undefined;
+  BackgroundServiceSettings: undefined;
   About: undefined;
 };
 
@@ -141,6 +143,11 @@ function App(): React.JSX.Element {
             name="NavigationSettings"
             component={NavigationSettingsScreen}
             options={{ headerTitle: 'הגדרות ניווט' }}
+          />
+          <Stack.Screen
+            name="BackgroundServiceSettings"
+            component={BackgroundServiceSettingsScreen}
+            options={{ headerTitle: 'שירות רקע' }}
           />
           <Stack.Screen
             name="About"
