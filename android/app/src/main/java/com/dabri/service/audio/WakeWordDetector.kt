@@ -49,7 +49,9 @@ class WakeWordDetector(
     fun stop() {
         if (!isRunning) return
         isRunning = false
+        wakeWordFired = false
         Log.d(TAG, "Wake word detection stopping")
+        mainHandler.removeCallbacksAndMessages(null)
         mainHandler.post { stopListeningInternal() }
     }
 
@@ -92,8 +94,8 @@ class WakeWordDetector(
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
                 // Keep listening as long as possible
                 putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 10000)
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 3000)
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 3000)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 5000)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 5000)
             }
 
             speechRecognizer?.startListening(intent)

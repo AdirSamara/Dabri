@@ -26,10 +26,14 @@ class SpeechRecognizerManager(
     private var isListening = false
     private val mainHandler = Handler(Looper.getMainLooper())
     private var timeoutRunnable: Runnable? = null
+    private var lastIntent: Intent? = null
+    private var retryCount = 0
+    private val MAX_RETRIES = 3
 
     fun start() {
         mainHandler.post {
             if (isListening) return@post
+            retryCount = 0
 
             if (!SpeechRecognizer.isRecognitionAvailable(context)) {
                 onError("Speech recognition is not available on this device")
@@ -45,7 +49,12 @@ class SpeechRecognizerManager(
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
                     putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                     putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                    // Keep listening longer before timeout
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 5000L)
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 3000L)
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 3000L)
                 }
+                lastIntent = intent
 
                 // Small delay to ensure listener is fully registered before starting
                 mainHandler.postDelayed({
@@ -132,10 +141,28 @@ class SpeechRecognizerManager(
                 }
                 Log.e(TAG, "Recognition error: $errorMsg")
 
-                // NO_MATCH and SPEECH_TIMEOUT are not fatal — just means nothing was heard
+                // NO_MATCH and SPEECH_TIMEOUT — retry up to MAX_RETRIES before giving up
                 if (error == SpeechRecognizer.ERROR_NO_MATCH ||
                     error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
-                    onFinalResult("")
+                    retryCount++
+                    if (retryCount >= MAX_RETRIES) {
+                        Log.d(TAG, "Max retries ($MAX_RETRIES) reached, giving up")
+                        onFinalResult("")
+                    } else {
+                        Log.d(TAG, "Timeout/no match, restarting (retry $retryCount/$MAX_RETRIES)")
+                        mainHandler.postDelayed({
+                            try {
+                                lastIntent?.let { intent ->
+                                    recognizer?.startListening(intent)
+                                    isListening = true
+                                    Log.d(TAG, "Restarted listening after timeout")
+                                } ?: onFinalResult("")
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Failed to restart after timeout", e)
+                                onFinalResult("")
+                            }
+                        }, 200)
+                    }
                 } else {
                     onError(errorMsg)
                 }

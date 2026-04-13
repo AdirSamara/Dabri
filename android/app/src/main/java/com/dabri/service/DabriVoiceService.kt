@@ -169,15 +169,16 @@ class DabriVoiceService : Service() {
         Log.d(TAG, "Wake word detected!")
         if (isInCall || isListeningPaused) return
 
-        // Stop wake word detection (can't use mic simultaneously)
-        wakeWordDetector?.stop()
+        // Fully destroy wake word detector to release mic
+        wakeWordDetector?.destroy()
+        wakeWordDetector = null
 
-        // Delay to let the mic be released before STT starts
+        // Delay to let the mic be fully released before STT starts
         android.os.Handler(mainLooper).postDelayed({
             bubbleManager?.updateState(PipelineState.RECOGNIZING)
             overlayManager?.show()
             pipelineController?.onWakeWordDetected()
-        }, 300)
+        }, 500)
     }
 
     private fun onBubbleTapped() {
@@ -193,12 +194,13 @@ class DabriVoiceService : Service() {
                 pipelineController?.finishRecognizing()
             }
             PipelineState.IDLE, PipelineState.DEGRADED, PipelineState.PAUSED -> {
-                // Start voice interaction
-                wakeWordDetector?.stop()
+                // Fully destroy wake word detector to release mic
+                wakeWordDetector?.destroy()
+                wakeWordDetector = null
                 android.os.Handler(mainLooper).postDelayed({
                     overlayManager?.show()
                     pipelineController?.onBubbleTapped()
-                }, 300)
+                }, 500)
             }
             else -> {
                 // Ignore taps during PARSING, EXECUTING
@@ -231,16 +233,24 @@ class DabriVoiceService : Service() {
             PipelineState.IDLE, PipelineState.DEGRADED -> {
                 // Interaction complete, auto-dismiss overlay after delay
                 overlayManager?.scheduleHide(3000)
-                // Restart wake word detection
-                if (!isInCall && !isListeningPaused) {
-                    wakeWordDetector?.start()
+                // Re-create wake word detector fresh (was destroyed before STT)
+                if (!isInCall && !isListeningPaused && wakeWordDetector == null) {
+                    try {
+                        initializeWakeWord()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to reinitialize wake word", e)
+                    }
                 }
             }
             PipelineState.ERROR -> {
                 overlayManager?.updateStatus(state)
                 overlayManager?.scheduleHide(3000)
-                if (!isInCall && !isListeningPaused) {
-                    wakeWordDetector?.start()
+                if (!isInCall && !isListeningPaused && wakeWordDetector == null) {
+                    try {
+                        initializeWakeWord()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to reinitialize wake word", e)
+                    }
                 }
             }
             else -> {}

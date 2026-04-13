@@ -129,9 +129,14 @@ class VoicePipelineController(
         sttManager = null
 
         if (text.isBlank()) {
-            Log.d(TAG, "Empty recognition result")
-            transition(PipelineState.IDLE, null)
-            audioFocusManager?.abandonFocus()
+            Log.d(TAG, "Empty recognition result — no speech detected")
+            val msg = "לא שמעתי. לחץ על הבועה כדי לנסות שוב."
+            transition(PipelineState.SPEAKING, msg)
+            if (ttsManager != null) {
+                ttsManager?.speak("לא שמעתי. נסה שוב.")
+            } else {
+                onTtsDone()
+            }
             return
         }
 
