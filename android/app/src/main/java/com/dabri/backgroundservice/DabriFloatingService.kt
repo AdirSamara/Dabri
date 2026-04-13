@@ -12,13 +12,10 @@ import android.provider.Settings
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
-import android.speech.tts.TextToSpeech
-import android.speech.tts.UtteranceProgressListener
 import com.dabri.MainApplication
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactContext
 import com.facebook.react.modules.core.DeviceEventManagerModule
-import java.util.Locale
 
 class DabriFloatingService : Service() {
 
@@ -30,16 +27,15 @@ class DabriFloatingService : Service() {
         const val ACTION_WAKE_WORD_CONFIG = "com.dabri.SERVICE_WAKE_WORD_CONFIG"
         const val ACTION_PAUSE_WAKE_WORD = "com.dabri.SERVICE_PAUSE_WAKE_WORD"
         const val ACTION_RESUME_WAKE_WORD = "com.dabri.SERVICE_RESUME_WAKE_WORD"
+        const val ACTION_TTS_DONE = "com.dabri.SERVICE_TTS_DONE"
         const val EXTRA_RESULT_SUCCESS = "result_success"
         const val EXTRA_RESULT_MESSAGE = "result_message"
 
         private const val RECOGNIZER_RESET_DELAY_MS = 150L
         private const val LOCALE_HEBREW = "he-IL"
         private const val COMMAND_SAFETY_TIMEOUT_MS = 15000L
-
-        // Listening timeouts — match main app's useVoiceRecognition behavior
-        private const val MAX_LISTENING_MS = 15000L       // Hard cap
-        private const val SILENCE_TIMEOUT_MS = 1500L      // Auto-stop after silence
+        private const val MAX_LISTENING_MS = 15000L
+        private const val SILENCE_TIMEOUT_MS = 1500L
     }
 
     private var notificationManager: ServiceNotificationManager? = null
@@ -47,8 +43,6 @@ class DabriFloatingService : Service() {
     private var voiceOverlayManager: VoiceOverlayManager? = null
     private var wakeWordManager: WakeWordManager? = null
     private var speechRecognizer: SpeechRecognizer? = null
-    private var tts: TextToSpeech? = null
-    private var ttsReady = false
     private var isPaused = false
     private var isListening = false
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -82,8 +76,6 @@ class DabriFloatingService : Service() {
             context = this,
             onWakeWordDetected = { remainingText -> handleWakeWordDetected(remainingText) }
         )
-
-        initTts()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -95,6 +87,7 @@ class DabriFloatingService : Service() {
             ACTION_WAKE_WORD_CONFIG -> handleWakeWordConfig(intent)
             ACTION_PAUSE_WAKE_WORD -> wakeWordManager?.stop()
             ACTION_RESUME_WAKE_WORD -> startWakeWordIfEnabled()
+            ACTION_TTS_DONE -> handleTtsDone()
             else -> handleStart()
         }
         return START_STICKY
@@ -108,12 +101,9 @@ class DabriFloatingService : Service() {
         destroyRecognizer()
         voiceOverlayManager?.hide()
         bubbleManager?.hide()
-        tts?.stop()
-        tts?.shutdown()
         wakeWordManager = null
         bubbleManager = null
         voiceOverlayManager = null
-        tts = null
         super.onDestroy()
         emitState("stopped")
     }
@@ -171,7 +161,6 @@ class DabriFloatingService : Service() {
     private fun handleWakeWordConfig(intent: Intent) {
         val enabled = intent.getBooleanExtra("wake_word_enabled", false)
         val phrase = intent.getStringExtra("wake_word_phrase") ?: "היי דברי"
-
         wakeWordManager?.stop()
         if (enabled && !isPaused) {
             wakeWordManager?.start(phrase)
@@ -229,8 +218,6 @@ class DabriFloatingService : Service() {
 
     private fun startListeningTimers() {
         cancelListeningTimers()
-
-        // Hard cap: force-stop after MAX_LISTENING_MS
         maxListeningRunnable = Runnable { forceStopListening() }
         mainHandler.postDelayed(maxListeningRunnable!!, MAX_LISTENING_MS)
     }
@@ -248,12 +235,9 @@ class DabriFloatingService : Service() {
         silenceRunnable = null
     }
 
-    /** Force the recognizer to stop — it will emit onResults with what it has. */
     private fun forceStopListening() {
         cancelListeningTimers()
-        try {
-            speechRecognizer?.stopListening()
-        } catch (_: Exception) {}
+        try { speechRecognizer?.stopListening() } catch (_: Exception) {}
     }
 
     // ── Bubble management ───────────────────────────────────────────
@@ -312,7 +296,6 @@ class DabriFloatingService : Service() {
     private fun handleOverlayClose() {
         cancelAllTimers()
         destroyRecognizer()
-        tts?.stop()
         voiceOverlayManager?.hide()
         bubbleManager?.updateState("running")
         emitState("running")
@@ -324,7 +307,6 @@ class DabriFloatingService : Service() {
     private fun startListening() {
         if (isListening) return
         isListening = true
-
         destroyRecognizer()
 
         mainHandler.postDelayed({
@@ -373,11 +355,8 @@ class DabriFloatingService : Service() {
             override fun onPartialResults(partialResults: Bundle?) {
                 val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 val text = matches?.firstOrNull() ?: return
-                mainHandler.post {
-                    voiceOverlayManager?.updateTranscript(text)
-                }
+                mainHandler.post { voiceOverlayManager?.updateTranscript(text) }
                 emitTranscript(text, isFinal = false)
-                // Reset silence timer on each partial result (user is still speaking)
                 resetSilenceTimer()
             }
 
@@ -427,56 +406,19 @@ class DabriFloatingService : Service() {
     fun handleCommandResult(intent: Intent) {
         cancelCommandSafetyTimeout()
 
-        val success = intent.getBooleanExtra(EXTRA_RESULT_SUCCESS, false)
         val message = intent.getStringExtra(EXTRA_RESULT_MESSAGE) ?: ""
 
-        mainHandler.post {
-            bubbleManager?.updateState("speaking")
-        }
+        mainHandler.post { bubbleManager?.updateState("speaking") }
         emitState("speaking")
 
-        speakResult(message)
+        // Delegate TTS to JS side (react-native-tts) to avoid dual TTS instance conflict.
+        // JS will call ACTION_TTS_DONE when speech finishes.
+        emitSpeakRequest(message)
     }
 
-    // ── TTS ─────────────────────────────────────────────────────────
-
-    private fun initTts() {
-        tts = TextToSpeech(this) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                val langResult = tts?.setLanguage(Locale("he", "IL"))
-                // Fallback to any available Hebrew variant
-                if (langResult == TextToSpeech.LANG_MISSING_DATA ||
-                    langResult == TextToSpeech.LANG_NOT_SUPPORTED) {
-                    tts?.setLanguage(Locale("he"))
-                }
-                tts?.setSpeechRate(0.85f)
-                ttsReady = true
-            }
-        }
-    }
-
-    private fun speakResult(text: String) {
-        if (!ttsReady || text.isBlank()) {
-            resetToRunning()
-            return
-        }
-
-        tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-            override fun onStart(utteranceId: String?) {}
-            override fun onDone(utteranceId: String?) {
-                mainHandler.post { resetToRunning() }
-            }
-            @Deprecated("Deprecated in Java")
-            override fun onError(utteranceId: String?) {
-                mainHandler.post { resetToRunning() }
-            }
-        })
-
-        // Use STREAM_MUSIC with explicit params to ensure audio plays
-        val params = Bundle().apply {
-            putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_MUSIC)
-        }
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, "dabri_result")
+    /** Called by JS after react-native-tts finishes speaking the result. */
+    private fun handleTtsDone() {
+        resetToRunning()
     }
 
     private fun resetToRunning() {
@@ -503,6 +445,25 @@ class DabriFloatingService : Service() {
                 .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                 ?.emit("backgroundServiceTranscript", data)
         } catch (_: Exception) {}
+    }
+
+    /** Ask JS to speak text via react-native-tts (single TTS instance). */
+    private fun emitSpeakRequest(text: String) {
+        val reactContext = getReactContext() ?: run {
+            // No JS bridge — just reset
+            resetToRunning()
+            return
+        }
+        try {
+            val data = Arguments.createMap().apply {
+                putString("text", text)
+            }
+            reactContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                ?.emit("backgroundServiceSpeak", data)
+        } catch (_: Exception) {
+            resetToRunning()
+        }
     }
 
     private fun getReactContext(): ReactContext? {

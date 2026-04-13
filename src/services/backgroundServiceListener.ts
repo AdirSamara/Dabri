@@ -6,6 +6,11 @@ import { dispatchAction } from './actionDispatcher';
 import BackgroundServiceBridge from '../native/BackgroundServiceBridge';
 import { generateId } from '../utils/hebrewUtils';
 
+// Lazy-load TTS to avoid circular dependency — same module the main app uses
+const isTtsAvailable = !!NativeModules.TextToSpeech;
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const Tts = isTtsAvailable ? (require('react-native-tts').default as any) : null;
+
 // Timeout for command processing — if Gemini or action takes longer,
 // discard the result to prevent stale commands from executing later.
 const COMMAND_TIMEOUT_MS = 12000;
@@ -100,6 +105,29 @@ export function setupBackgroundServiceListener(): void {
         } catch (_) {
           // Service may have stopped — safe to ignore
         }
+      }
+    },
+  );
+
+  // Handle TTS speak requests from the Kotlin service.
+  // The service no longer has its own TextToSpeech instance to avoid
+  // dual-TTS conflicts that break audio. Instead it emits this event
+  // and we use the same react-native-tts that the main app uses.
+  emitter.addListener(
+    'backgroundServiceSpeak',
+    (event: { text: string }) => {
+      if (!Tts || !event.text) {
+        BackgroundServiceBridge?.notifyTtsDone().catch(() => {});
+        return;
+      }
+      try {
+        const sub = Tts.addEventListener('tts-finish', () => {
+          try { (sub as any)?.remove?.(); } catch (_: unknown) {}
+          BackgroundServiceBridge?.notifyTtsDone().catch(() => {});
+        });
+        Tts.speak(event.text);
+      } catch (_) {
+        BackgroundServiceBridge?.notifyTtsDone().catch(() => {});
       }
     },
   );

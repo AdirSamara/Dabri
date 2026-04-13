@@ -22,6 +22,7 @@ interface BackgroundServiceModuleInterface {
   getWakeWordConfig(): Promise<{ enabled: boolean; phrase: string }>;
   pauseWakeWord(): Promise<boolean>;
   resumeWakeWord(): Promise<boolean>;
+  notifyTtsDone(): Promise<boolean>;
 }
 
 const BackgroundServiceBridge: BackgroundServiceModuleInterface | null =

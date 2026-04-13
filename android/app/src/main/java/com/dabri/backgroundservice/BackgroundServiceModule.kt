@@ -28,6 +28,14 @@ class BackgroundServiceModule(private val reactContext: ReactApplicationContext)
 
     override fun getName() = NAME
 
+    // Required by RN 0.85's NativeEventEmitter — without these, event emitter
+    // setup fails silently and can corrupt the global event system.
+    @ReactMethod
+    fun addListener(@Suppress("UNUSED_PARAMETER") eventName: String) {}
+
+    @ReactMethod
+    fun removeListeners(@Suppress("UNUSED_PARAMETER") count: Int) {}
+
     @ReactMethod
     fun startService(promise: Promise) {
         try {
@@ -253,6 +261,21 @@ class BackgroundServiceModule(private val reactContext: ReactApplicationContext)
             promise.resolve(true)
         } catch (e: Exception) {
             promise.reject("RESULT_ERROR", e.message ?: "Failed to notify command result", e)
+        }
+    }
+
+    @ReactMethod
+    fun notifyTtsDone(promise: Promise) {
+        try {
+            if (ServiceStateManager.wasEnabled(appContext)) {
+                val intent = Intent(appContext, DabriFloatingService::class.java).apply {
+                    action = DabriFloatingService.ACTION_TTS_DONE
+                }
+                appContext.startService(intent)
+            }
+            promise.resolve(true)
+        } catch (e: Exception) {
+            promise.resolve(true)
         }
     }
 }
