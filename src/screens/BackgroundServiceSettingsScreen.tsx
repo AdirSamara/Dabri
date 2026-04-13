@@ -223,7 +223,7 @@ export function BackgroundServiceSettingsScreen(): React.JSX.Element {
     [theme],
   );
 
-  const { backgroundServiceState } = useDabriStore();
+  const { backgroundServiceState, wakeWordEnabled, wakeWordPhrase, setWakeWordEnabled, setWakeWordPhrase } = useDabriStore();
   const [permissions, setPermissions] = useState<PermissionStatus>({
     overlayGranted: false,
     notificationsGranted: false,
@@ -321,6 +321,17 @@ export function BackgroundServiceSettingsScreen(): React.JSX.Element {
       ToastAndroid.show('לא ניתן לפתוח הגדרות', ToastAndroid.SHORT);
     }
   }, []);
+
+  const handleSetWakeWord = useCallback(async (enabled: boolean, phrase: string) => {
+    if (!BackgroundServiceBridge) return;
+    try {
+      await BackgroundServiceBridge.setWakeWordConfig(enabled, phrase);
+      setWakeWordEnabled(enabled);
+      setWakeWordPhrase(phrase);
+    } catch (e) {
+      console.log('[BackgroundServiceSettings] Wake word config error:', e);
+    }
+  }, [setWakeWordEnabled, setWakeWordPhrase]);
 
   const openBatterySettings = useCallback(async () => {
     try {
@@ -426,6 +437,95 @@ export function BackgroundServiceSettingsScreen(): React.JSX.Element {
           <TouchableOpacity style={styles.buttonPrimary} onPress={handleResume}>
             <Text style={styles.buttonPrimaryText}>המשך</Text>
           </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Wake word configuration */}
+      {!isStopped && (
+        <View style={styles.permissionsCard}>
+          <Text style={styles.permissionsTitle}>מילת הפעלה</Text>
+          <Text style={[styles.hint, { marginBottom: 12 }]}>
+            אמור את מילת ההפעלה כדי להפעיל את דברי בלי ללחוץ על הבועה
+          </Text>
+          <TouchableOpacity
+            style={[
+              styles.buttonRow,
+              {
+                backgroundColor: wakeWordEnabled && wakeWordPhrase === 'היי דברי' ? '#2196F320' : 'transparent',
+                borderWidth: 1,
+                borderColor: wakeWordEnabled && wakeWordPhrase === 'היי דברי' ? '#2196F3' : theme.border,
+                borderRadius: 10,
+                paddingVertical: 12,
+                paddingHorizontal: 16,
+                marginBottom: 8,
+                justifyContent: 'flex-end',
+              },
+            ]}
+            onPress={() => handleSetWakeWord(true, 'היי דברי')}
+          >
+            <Text style={{
+              fontSize: 15,
+              fontWeight: wakeWordEnabled && wakeWordPhrase === 'היי דברי' ? '700' : '400',
+              color: wakeWordEnabled && wakeWordPhrase === 'היי דברי' ? '#2196F3' : theme.text,
+              writingDirection: 'rtl',
+            }}>
+              היי דברי
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.buttonRow,
+              {
+                backgroundColor: wakeWordEnabled && wakeWordPhrase === 'היי סירי' ? '#2196F320' : 'transparent',
+                borderWidth: 1,
+                borderColor: wakeWordEnabled && wakeWordPhrase === 'היי סירי' ? '#2196F3' : theme.border,
+                borderRadius: 10,
+                paddingVertical: 12,
+                paddingHorizontal: 16,
+                marginBottom: 8,
+                justifyContent: 'flex-end',
+              },
+            ]}
+            onPress={() => handleSetWakeWord(true, 'היי סירי')}
+          >
+            <Text style={{
+              fontSize: 15,
+              fontWeight: wakeWordEnabled && wakeWordPhrase === 'היי סירי' ? '700' : '400',
+              color: wakeWordEnabled && wakeWordPhrase === 'היי סירי' ? '#2196F3' : theme.text,
+              writingDirection: 'rtl',
+            }}>
+              היי סירי
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.buttonRow,
+              {
+                backgroundColor: !wakeWordEnabled ? '#F4433620' : 'transparent',
+                borderWidth: 1,
+                borderColor: !wakeWordEnabled ? '#F44336' : theme.border,
+                borderRadius: 10,
+                paddingVertical: 12,
+                paddingHorizontal: 16,
+                justifyContent: 'flex-end',
+              },
+            ]}
+            onPress={() => handleSetWakeWord(false, wakeWordPhrase)}
+          >
+            <Text style={{
+              fontSize: 15,
+              fontWeight: !wakeWordEnabled ? '700' : '400',
+              color: !wakeWordEnabled ? '#F44336' : theme.text,
+              writingDirection: 'rtl',
+            }}>
+              כבוי
+            </Text>
+          </TouchableOpacity>
+          {wakeWordEnabled && (
+            <Text style={[styles.hint, { marginTop: 10 }]}>
+              זיהוי מילת הפעלה משתמש במיקרופון ברציפות ועלול להשפיע על הסוללה
+            </Text>
+          )}
         </View>
       )}
 

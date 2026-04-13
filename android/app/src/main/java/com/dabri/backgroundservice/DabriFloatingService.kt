@@ -27,6 +27,7 @@ class DabriFloatingService : Service() {
         const val ACTION_RESUME = "com.dabri.SERVICE_RESUME"
         const val ACTION_STOP = "com.dabri.SERVICE_STOP"
         const val ACTION_COMMAND_RESULT = "com.dabri.SERVICE_COMMAND_RESULT"
+        const val ACTION_WAKE_WORD_CONFIG = "com.dabri.SERVICE_WAKE_WORD_CONFIG"
         const val EXTRA_RESULT_SUCCESS = "result_success"
         const val EXTRA_RESULT_MESSAGE = "result_message"
 
@@ -37,6 +38,7 @@ class DabriFloatingService : Service() {
     private var notificationManager: ServiceNotificationManager? = null
     private var bubbleManager: BubbleManager? = null
     private var voiceOverlayManager: VoiceOverlayManager? = null
+    private var wakeWordManager: WakeWordManager? = null
     private var speechRecognizer: SpeechRecognizer? = null
     private var tts: TextToSpeech? = null
     private var ttsReady = false
@@ -65,6 +67,11 @@ class DabriFloatingService : Service() {
             onClose = { handleOverlayClose() }
         )
 
+        wakeWordManager = WakeWordManager(
+            context = this,
+            onWakeWordDetected = { remainingText -> handleWakeWordDetected(remainingText) }
+        )
+
         initTts()
     }
 
@@ -74,6 +81,7 @@ class DabriFloatingService : Service() {
             ACTION_RESUME -> handleResume()
             ACTION_STOP -> handleStop()
             ACTION_COMMAND_RESULT -> handleCommandResult(intent)
+            ACTION_WAKE_WORD_CONFIG -> handleWakeWordConfig(intent)
             else -> handleStart()
         }
         return START_STICKY
@@ -82,11 +90,13 @@ class DabriFloatingService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        wakeWordManager?.stop()
         destroyRecognizer()
         voiceOverlayManager?.hide()
         bubbleManager?.hide()
         tts?.stop()
         tts?.shutdown()
+        wakeWordManager = null
         bubbleManager = null
         voiceOverlayManager = null
         tts = null
@@ -101,11 +111,13 @@ class DabriFloatingService : Service() {
         ServiceStateManager.setEnabled(this, true)
         notificationManager?.updateNotification(isPaused = false)
         showBubble()
+        startWakeWordIfEnabled()
         emitState("running")
     }
 
     private fun handlePause() {
         isPaused = true
+        wakeWordManager?.stop()
         destroyRecognizer()
         voiceOverlayManager?.hide()
         bubbleManager?.hide()
@@ -117,15 +129,68 @@ class DabriFloatingService : Service() {
         isPaused = false
         notificationManager?.updateNotification(isPaused = false)
         showBubble()
+        startWakeWordIfEnabled()
         emitState("running")
     }
 
     private fun handleStop() {
         ServiceStateManager.setEnabled(this, false)
+        wakeWordManager?.stop()
         destroyRecognizer()
         voiceOverlayManager?.hide()
         bubbleManager?.hide()
         stopSelf()
+    }
+
+    // ── Wake word ───────────────────────────────────────────────────
+
+    private fun startWakeWordIfEnabled() {
+        if (ServiceStateManager.isWakeWordEnabled(this)) {
+            val phrase = ServiceStateManager.getWakeWordPhrase(this)
+            wakeWordManager?.start(phrase)
+        }
+    }
+
+    private fun handleWakeWordConfig(intent: Intent) {
+        val enabled = intent.getBooleanExtra("wake_word_enabled", false)
+        val phrase = intent.getStringExtra("wake_word_phrase") ?: "היי דברי"
+
+        wakeWordManager?.stop()
+        if (enabled && !isPaused) {
+            wakeWordManager?.start(phrase)
+        }
+    }
+
+    private fun handleWakeWordDetected(remainingText: String) {
+        // Check if mic is available (not in a call)
+        val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        if (audioManager.mode == AudioManager.MODE_IN_CALL ||
+            audioManager.mode == AudioManager.MODE_IN_COMMUNICATION) {
+            // In a call — restart wake word and ignore
+            startWakeWordIfEnabled()
+            return
+        }
+
+        if (remainingText.isNotBlank()) {
+            // User said wake phrase + command (e.g., "היי דברי תתקשר לרון")
+            // Process directly without opening overlay
+            mainHandler.post {
+                bubbleManager?.updateState("processing")
+            }
+            emitState("processing")
+            emitTranscript(remainingText, isFinal = true)
+        } else {
+            // User said only the wake phrase — open overlay for command listening
+            if (Settings.canDrawOverlays(this)) {
+                mainHandler.post {
+                    voiceOverlayManager?.show()
+                    voiceOverlayManager?.updateStatus("listening")
+                    bubbleManager?.updateState("listening")
+                }
+                startListening()
+                emitState("listening")
+            }
+        }
     }
 
     // ── Bubble management ───────────────────────────────────────────
@@ -142,14 +207,15 @@ class DabriFloatingService : Service() {
             return
         }
 
-        // Check if mic is available
         val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         if (audioManager.mode == AudioManager.MODE_IN_CALL ||
             audioManager.mode == AudioManager.MODE_IN_COMMUNICATION) {
             return
         }
 
-        // Show overlay and start listening
+        // Stop wake word listening while handling a command
+        wakeWordManager?.stop()
+
         if (Settings.canDrawOverlays(this)) {
             voiceOverlayManager?.show()
             voiceOverlayManager?.updateStatus("listening")
@@ -168,7 +234,7 @@ class DabriFloatingService : Service() {
     }
 
     private fun handleBubbleDismissed() {
-        // User dragged bubble to X zone — hide bubble but keep service running
+        wakeWordManager?.stop()
         bubbleManager?.hide()
     }
 
@@ -178,15 +244,15 @@ class DabriFloatingService : Service() {
         voiceOverlayManager?.hide()
         bubbleManager?.updateState("running")
         emitState("running")
+        startWakeWordIfEnabled()
     }
 
-    // ── Speech Recognition ──────────────────────────────────────────
+    // ── Speech Recognition (command mode) ───────────────────────────
 
     private fun startListening() {
         if (isListening) return
         isListening = true
 
-        // Destroy any existing recognizer first, then create fresh after a delay
         destroyRecognizer()
 
         mainHandler.postDelayed({
@@ -244,22 +310,17 @@ class DabriFloatingService : Service() {
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 val text = matches?.firstOrNull() ?: ""
 
-                // Bug 7 fix: Close overlay IMMEDIATELY after final result.
-                // Bubble stays in "processing" state while JS processes the command.
                 mainHandler.post {
                     voiceOverlayManager?.hide()
                     bubbleManager?.updateState("processing")
                 }
                 emitState("processing")
                 emitTranscript(text, isFinal = true)
-
-                // Destroy recognizer so next attempt starts clean (Bug 5)
                 destroyRecognizer()
             }
 
             override fun onError(error: Int) {
                 isListening = false
-                // Destroy recognizer on error so next attempt is clean (Bug 5)
                 destroyRecognizer()
 
                 val errorMsg = when (error) {
@@ -273,10 +334,10 @@ class DabriFloatingService : Service() {
                     voiceOverlayManager?.updateStatus("idle")
                     bubbleManager?.updateState("running")
                 }
-                // Auto-close overlay after showing error briefly
                 mainHandler.postDelayed({
                     voiceOverlayManager?.hide()
                     emitState("running")
+                    startWakeWordIfEnabled()
                 }, 2000L)
             }
         }
@@ -288,7 +349,6 @@ class DabriFloatingService : Service() {
         val success = intent.getBooleanExtra(EXTRA_RESULT_SUCCESS, false)
         val message = intent.getStringExtra(EXTRA_RESULT_MESSAGE) ?: ""
 
-        // Bug 7: Overlay is already closed at this point. Just speak result via TTS.
         mainHandler.post {
             bubbleManager?.updateState("speaking")
         }
@@ -329,10 +389,11 @@ class DabriFloatingService : Service() {
         tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "dabri_result")
     }
 
-    // Bug 10: Always reset bubble to "running" after TTS finishes
     private fun resetToRunning() {
         bubbleManager?.updateState("running")
         emitState("running")
+        // Restart wake word listening after command completes
+        startWakeWordIfEnabled()
     }
 
     // ── JS communication ────────────────────────────────────────────

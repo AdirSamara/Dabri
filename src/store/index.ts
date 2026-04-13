@@ -44,6 +44,10 @@ interface DabriState {
   backgroundServiceEnabled: boolean; // persisted
   backgroundServiceState: BackgroundServiceState; // session-only
 
+  // Wake word (persisted)
+  wakeWordEnabled: boolean;
+  wakeWordPhrase: string;
+
   // Actions
   setVoiceStatus: (status: VoiceStatus) => void;
   setLastTranscript: (transcript: string) => void;
@@ -68,6 +72,8 @@ interface DabriState {
   setWorkAddress: (address: string) => void;
   setBackgroundServiceEnabled: (enabled: boolean) => void;
   setBackgroundServiceState: (state: BackgroundServiceState) => void;
+  setWakeWordEnabled: (enabled: boolean) => void;
+  setWakeWordPhrase: (phrase: string) => void;
 }
 
 export const useDabriStore = create<DabriState>()(
@@ -90,6 +96,8 @@ export const useDabriStore = create<DabriState>()(
       workAddress: '',
       backgroundServiceEnabled: false,
       backgroundServiceState: 'stopped',
+      wakeWordEnabled: false,
+      wakeWordPhrase: 'היי דברי',
 
       // Actions
       setVoiceStatus: (status) => set({ voiceStatus: status }),
@@ -179,6 +187,8 @@ export const useDabriStore = create<DabriState>()(
       setWorkAddress: (address) => set({ workAddress: address }),
       setBackgroundServiceEnabled: (enabled) => set({ backgroundServiceEnabled: enabled }),
       setBackgroundServiceState: (state) => set({ backgroundServiceState: state }),
+      setWakeWordEnabled: (enabled) => set({ wakeWordEnabled: enabled }),
+      setWakeWordPhrase: (phrase) => set({ wakeWordPhrase: phrase }),
     }),
     {
       name: 'dabri-store',
@@ -194,6 +204,8 @@ export const useDabriStore = create<DabriState>()(
         homeAddress: state.homeAddress,
         workAddress: state.workAddress,
         backgroundServiceEnabled: state.backgroundServiceEnabled,
+        wakeWordEnabled: state.wakeWordEnabled,
+        wakeWordPhrase: state.wakeWordPhrase,
       }),
       onRehydrateStorage: () => (state, error) => {
         if (error) {

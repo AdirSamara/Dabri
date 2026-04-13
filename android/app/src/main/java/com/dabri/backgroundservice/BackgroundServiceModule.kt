@@ -178,6 +178,36 @@ class BackgroundServiceModule(private val reactContext: ReactApplicationContext)
     }
 
     @ReactMethod
+    fun setWakeWordConfig(enabled: Boolean, phrase: String, promise: Promise) {
+        try {
+            ServiceStateManager.setWakeWordConfig(appContext, enabled, phrase)
+
+            // Notify the running service to update wake word state
+            val intent = Intent(appContext, DabriFloatingService::class.java).apply {
+                action = DabriFloatingService.ACTION_WAKE_WORD_CONFIG
+                putExtra("wake_word_enabled", enabled)
+                putExtra("wake_word_phrase", phrase)
+            }
+            appContext.startService(intent)
+            promise.resolve(true)
+        } catch (e: Exception) {
+            promise.reject("WAKE_WORD_ERROR", e.message ?: "Failed to set wake word config", e)
+        }
+    }
+
+    @ReactMethod
+    fun getWakeWordConfig(promise: Promise) {
+        try {
+            val map = Arguments.createMap()
+            map.putBoolean("enabled", ServiceStateManager.isWakeWordEnabled(appContext))
+            map.putString("phrase", ServiceStateManager.getWakeWordPhrase(appContext))
+            promise.resolve(map)
+        } catch (e: Exception) {
+            promise.reject("WAKE_WORD_ERROR", e.message ?: "Failed to get wake word config", e)
+        }
+    }
+
+    @ReactMethod
     fun notifyCommandResult(success: Boolean, message: String, promise: Promise) {
         try {
             val intent = Intent(appContext, DabriFloatingService::class.java).apply {

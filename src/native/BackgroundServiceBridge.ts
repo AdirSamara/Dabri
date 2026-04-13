@@ -18,6 +18,8 @@ interface BackgroundServiceModuleInterface {
   requestOverlayPermission(): Promise<boolean>;
   checkAllPermissions(): Promise<PermissionStatus>;
   notifyCommandResult(success: boolean, message: string): Promise<boolean>;
+  setWakeWordConfig(enabled: boolean, phrase: string): Promise<boolean>;
+  getWakeWordConfig(): Promise<{ enabled: boolean; phrase: string }>;
 }
 
 const BackgroundServiceBridge: BackgroundServiceModuleInterface | null =
