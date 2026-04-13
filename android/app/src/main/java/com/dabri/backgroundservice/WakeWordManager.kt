@@ -12,20 +12,18 @@ import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
-import kotlin.math.abs
 
 /**
- * Two-stage wake word detection:
+ * Hybrid wake word detection:
  *
- * Stage 1 (AudioRecord): Keeps the mic open continuously with ZERO beeps.
- *   Monitors audio energy to detect when someone starts speaking.
- *   The green privacy dot stays on constantly.
+ * - AudioRecord runs continuously to keep the green privacy dot on.
+ *   It does NOT process audio — it's purely for the mic indicator.
  *
- * Stage 2 (SpeechRecognizer): Activated ONLY when voice is detected.
- *   Transcribes speech briefly and checks for the wake phrase.
- *   If matched → trigger callback. If not → return to Stage 1.
+ * - SpeechRecognizer runs in parallel for actual wake word detection.
+ *   On timeout/error, it restarts with audio focus held to suppress beeps.
+ *   AudioRecord keeps the green dot visible during restart gaps.
  *
- * This matches the industry standard for always-on voice assistants.
+ * This gives: constant green dot + actual wake word detection + minimal beeps.
  */
 class WakeWordManager(
     private val context: Context,
@@ -36,31 +34,19 @@ class WakeWordManager(
     private var matchVariants: List<String> = getMatchVariants(wakePhrase)
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    // Stage 1: AudioRecord for continuous listening
+    // AudioRecord: keeps green dot on, does not process audio
     private var audioRecord: AudioRecord? = null
-    private var listeningThread: Thread? = null
+    private var micThread: Thread? = null
 
-    // Stage 2: SpeechRecognizer for transcription (only when voice detected)
+    // SpeechRecognizer: actual wake word detection
     private var recognizer: SpeechRecognizer? = null
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private var audioFocusListener: AudioManager.OnAudioFocusChangeListener? = null
 
     companion object {
         private const val SAMPLE_RATE = 16000
-        private const val CHANNEL = AudioFormat.CHANNEL_IN_MONO
-        private const val ENCODING = AudioFormat.ENCODING_PCM_16BIT
-
-        // Energy threshold for voice activity detection.
-        // Audio samples above this average amplitude trigger Stage 2.
-        private const val VOICE_ENERGY_THRESHOLD = 1500
-        // How many consecutive high-energy chunks needed to confirm voice
-        private const val VOICE_CONFIRM_CHUNKS = 2
-        // Chunk size in samples (~100ms of audio at 16kHz)
-        private const val CHUNK_SAMPLES = 1600
-
-        // After SpeechRecognizer finishes (no wake word match), wait before
-        // returning to Stage 1 to avoid rapid cycling
-        private const val STAGE2_COOLDOWN_MS = 300L
+        private const val RELISTEN_DELAY_MS = 500L
+        private const val ERROR_RELISTEN_DELAY_MS = 2000L
     }
 
     fun start(phrase: String) {
@@ -68,35 +54,43 @@ class WakeWordManager(
         wakePhrase = phrase
         matchVariants = getMatchVariants(phrase)
         isActive = true
-        startStage1()
+
+        startMicIndicator()
+        // Hold audio focus to suppress the first SpeechRecognizer beep
+        claimAudioFocus()
+        mainHandler.postDelayed({ startRecognizer() }, 200L)
     }
 
     fun stop() {
         isActive = false
-        stopStage2()
-        stopStage1()
+        mainHandler.removeCallbacksAndMessages(null)
+        stopRecognizer()
+        stopMicIndicator()
+        abandonAudioFocus()
     }
 
     fun isRunning(): Boolean = isActive
 
-    // ── Stage 1: AudioRecord continuous listening ───────────────────
+    // ── Mic indicator (AudioRecord) ─────────────────────────────────
+    // Keeps the green privacy dot on. Reads mic data but discards it.
 
-    private fun startStage1() {
-        if (!isActive) return
-        stopStage1()
+    private fun startMicIndicator() {
+        stopMicIndicator()
 
-        val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL, ENCODING)
-            .coerceAtLeast(CHUNK_SAMPLES * 2)
+        val bufferSize = AudioRecord.getMinBufferSize(
+            SAMPLE_RATE,
+            AudioFormat.CHANNEL_IN_MONO,
+            AudioFormat.ENCODING_PCM_16BIT
+        ).coerceAtLeast(4096)
 
         try {
             audioRecord = AudioRecord(
                 MediaRecorder.AudioSource.VOICE_RECOGNITION,
                 SAMPLE_RATE,
-                CHANNEL,
-                ENCODING,
+                AudioFormat.CHANNEL_IN_MONO,
+                AudioFormat.ENCODING_PCM_16BIT,
                 bufferSize
             )
-
             if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
                 audioRecord?.release()
                 audioRecord = null
@@ -105,30 +99,18 @@ class WakeWordManager(
 
             audioRecord?.startRecording()
 
-            listeningThread = Thread {
-                val buffer = ShortArray(CHUNK_SAMPLES)
-                var highEnergyCount = 0
-
+            // Read and discard audio data to keep the mic active
+            micThread = Thread {
+                val buffer = ShortArray(1600) // 100ms chunks
                 while (isActive && audioRecord != null) {
-                    val read = audioRecord?.read(buffer, 0, CHUNK_SAMPLES) ?: -1
-                    if (read <= 0) continue
-
-                    val energy = calculateEnergy(buffer, read)
-
-                    if (energy > VOICE_ENERGY_THRESHOLD) {
-                        highEnergyCount++
-                        if (highEnergyCount >= VOICE_CONFIRM_CHUNKS) {
-                            // Voice detected — switch to Stage 2
-                            highEnergyCount = 0
-                            mainHandler.post { switchToStage2() }
-                            return@Thread
-                        }
-                    } else {
-                        highEnergyCount = 0
+                    try {
+                        audioRecord?.read(buffer, 0, buffer.size)
+                    } catch (_: Exception) {
+                        break
                     }
                 }
             }.apply {
-                name = "DabriWakeWordListener"
+                name = "DabriMicIndicator"
                 isDaemon = true
                 start()
             }
@@ -138,9 +120,9 @@ class WakeWordManager(
         }
     }
 
-    private fun stopStage1() {
-        listeningThread?.interrupt()
-        listeningThread = null
+    private fun stopMicIndicator() {
+        micThread?.interrupt()
+        micThread = null
         try {
             audioRecord?.stop()
             audioRecord?.release()
@@ -148,47 +130,33 @@ class WakeWordManager(
         audioRecord = null
     }
 
-    /** Calculate average absolute amplitude of audio samples. */
-    private fun calculateEnergy(buffer: ShortArray, length: Int): Int {
-        var sum = 0L
-        for (i in 0 until length) {
-            sum += abs(buffer[i].toInt())
-        }
-        return (sum / length).toInt()
-    }
+    // ── SpeechRecognizer (wake word detection) ──────────────────────
 
-    // ── Stage 2: SpeechRecognizer for transcription ─────────────────
-
-    private fun switchToStage2() {
+    private fun startRecognizer() {
         if (!isActive) return
-        stopStage1() // Release AudioRecord so SpeechRecognizer can use the mic
-
-        // Suppress the SpeechRecognizer beep via audio focus
-        claimAudioFocus()
+        stopRecognizer()
 
         try {
             recognizer = SpeechRecognizer.createSpeechRecognizer(context)
-            recognizer?.setRecognitionListener(createRecognitionListener())
+            recognizer?.setRecognitionListener(createListener())
 
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, "he-IL")
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-                // Short listening window — just enough to capture wake phrase
-                putExtra("android.speech.extra.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", 2000L)
-                putExtra("android.speech.extra.SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS", 1500L)
+                // Long silence timeouts to reduce restart frequency
+                putExtra("android.speech.extra.SPEECH_INPUT_MINIMUM_LENGTH_MILLIS", 15000L)
+                putExtra("android.speech.extra.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", 10000L)
+                putExtra("android.speech.extra.SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS", 8000L)
             }
             recognizer?.startListening(intent)
         } catch (_: Exception) {
-            abandonAudioFocus()
-            returnToStage1()
+            scheduleRestart(ERROR_RELISTEN_DELAY_MS)
         }
     }
 
-    private fun stopStage2() {
-        abandonAudioFocus()
-        mainHandler.removeCallbacksAndMessages(null)
+    private fun stopRecognizer() {
         try {
             recognizer?.stopListening()
             recognizer?.cancel()
@@ -197,13 +165,16 @@ class WakeWordManager(
         recognizer = null
     }
 
-    private fun returnToStage1() {
-        stopStage2()
+    private fun scheduleRestart(delayMs: Long) {
         if (!isActive) return
-        mainHandler.postDelayed({ startStage1() }, STAGE2_COOLDOWN_MS)
+        // Hold audio focus during the restart gap to suppress beep
+        claimAudioFocus()
+        mainHandler.postDelayed({
+            if (isActive) startRecognizer()
+        }, delayMs)
     }
 
-    // ── Audio focus for beep suppression ─────────────────────────────
+    // ── Audio focus ─────────────────────────────────────────────────
 
     @Suppress("DEPRECATION")
     private fun claimAudioFocus() {
@@ -222,12 +193,12 @@ class WakeWordManager(
         audioFocusListener = null
     }
 
-    // ── Recognition listener (Stage 2) ──────────────────────────────
+    // ── Recognition listener ────────────────────────────────────────
 
-    private fun createRecognitionListener(): RecognitionListener {
+    private fun createListener(): RecognitionListener {
         return object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
-                // Recognizer is listening — release audio focus so user can hear feedback
+                // Recognizer is ready — release audio focus so sounds work normally
                 abandonAudioFocus()
             }
             override fun onBeginningOfSpeech() {}
@@ -248,13 +219,23 @@ class WakeWordManager(
 
                 if (text.isNotBlank() && checkWakePhrase(text)) return
 
-                // No wake word — return to Stage 1
-                returnToStage1()
+                // No wake word — restart
+                scheduleRestart(RELISTEN_DELAY_MS)
             }
 
             override fun onError(error: Int) {
-                // Any error — return to Stage 1
-                returnToStage1()
+                when (error) {
+                    SpeechRecognizer.ERROR_NO_MATCH,
+                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> {
+                        scheduleRestart(RELISTEN_DELAY_MS)
+                    }
+                    SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> {
+                        scheduleRestart(ERROR_RELISTEN_DELAY_MS)
+                    }
+                    else -> {
+                        scheduleRestart(ERROR_RELISTEN_DELAY_MS)
+                    }
+                }
             }
         }
     }
@@ -265,10 +246,11 @@ class WakeWordManager(
         for (variant in matchVariants) {
             if (normalized.startsWith(variant)) {
                 val remaining = normalized.removePrefix(variant).trim()
-                // Wake word detected — fully stop and notify
                 isActive = false
-                stopStage2()
-                stopStage1()
+                mainHandler.removeCallbacksAndMessages(null)
+                stopRecognizer()
+                stopMicIndicator()
+                abandonAudioFocus()
                 mainHandler.post { onWakeWordDetected(remaining) }
                 return true
             }
