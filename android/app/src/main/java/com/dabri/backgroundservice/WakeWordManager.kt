@@ -2,6 +2,7 @@ package com.dabri.backgroundservice
 
 import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -10,15 +11,10 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 
 /**
- * Continuous wake word detection using a SINGLE SpeechRecognizer instance.
+ * Continuous wake word detection using Android's SpeechRecognizer.
  *
- * Key design: The recognizer is created once and reused across listening cycles.
- * We only call startListening() again after each result/error — never destroy
- * and recreate. This matches how Miri keeps the mic open continuously.
- *
- * Note: We do NOT mute device streams to suppress the SpeechRecognizer beep.
- * Muting STREAM_MUSIC breaks TTS playback. The single-recognizer approach
- * already minimizes beeps (only one on initial start, not on restarts).
+ * Uses AudioManager to briefly claim audio focus before startListening()
+ * to suppress the system beep, then abandons focus so TTS can work.
  */
 class WakeWordManager(
     private val context: Context,
@@ -29,21 +25,22 @@ class WakeWordManager(
     private var wakePhrase = "היי דברי"
     private var matchVariants: List<String> = getMatchVariants(wakePhrase)
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private var audioFocusRequest: AudioManager.OnAudioFocusChangeListener? = null
 
     companion object {
-        private const val RELISTEN_DELAY_MS = 100L
-        private const val ERROR_RELISTEN_DELAY_MS = 300L
-        private const val BUSY_RELISTEN_DELAY_MS = 2000L
+        private const val RELISTEN_DELAY_MS = 500L
+        private const val ERROR_RELISTEN_DELAY_MS = 2000L
+        private const val BUSY_RELISTEN_DELAY_MS = 3000L
     }
 
     fun start(phrase: String) {
-        stop() // clean stop first
+        stop()
 
         wakePhrase = phrase
         matchVariants = getMatchVariants(phrase)
         isActive = true
 
-        // Create the recognizer ONCE
         mainHandler.post {
             try {
                 recognizer = SpeechRecognizer.createSpeechRecognizer(context)
@@ -58,6 +55,7 @@ class WakeWordManager(
     fun stop() {
         isActive = false
         mainHandler.removeCallbacksAndMessages(null)
+        abandonAudioFocus()
         try {
             recognizer?.stopListening()
             recognizer?.cancel()
@@ -68,12 +66,12 @@ class WakeWordManager(
 
     fun isRunning(): Boolean = isActive
 
-    /**
-     * Start listening on the existing recognizer instance.
-     * Called repeatedly — does NOT create a new recognizer.
-     */
     private fun beginListening() {
         if (!isActive || recognizer == null) return
+
+        // Claim audio focus briefly to suppress the SpeechRecognizer beep.
+        // Released in onReadyForSpeech once the recognizer is actively listening.
+        claimAudioFocus()
 
         try {
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -84,6 +82,7 @@ class WakeWordManager(
             }
             recognizer?.startListening(intent)
         } catch (_: Exception) {
+            abandonAudioFocus()
             scheduleRelisten(ERROR_RELISTEN_DELAY_MS)
         }
     }
@@ -93,11 +92,35 @@ class WakeWordManager(
         mainHandler.postDelayed({ beginListening() }, delayMs)
     }
 
+    // ── Audio focus to suppress beep ────────────────────────────────
+
+    @Suppress("DEPRECATION")
+    private fun claimAudioFocus() {
+        abandonAudioFocus()
+        audioFocusRequest = AudioManager.OnAudioFocusChangeListener {}
+        audioManager.requestAudioFocus(
+            audioFocusRequest,
+            AudioManager.STREAM_MUSIC,
+            AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
+        )
+    }
+
+    @Suppress("DEPRECATION")
+    private fun abandonAudioFocus() {
+        audioFocusRequest?.let {
+            audioManager.abandonAudioFocus(it)
+        }
+        audioFocusRequest = null
+    }
+
     // ── Recognition listener ────────────────────────────────────────
 
     private fun createListener(): RecognitionListener {
         return object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) {}
+            override fun onReadyForSpeech(params: Bundle?) {
+                // Recognizer is now listening — release audio focus so TTS works
+                abandonAudioFocus()
+            }
             override fun onBeginningOfSpeech() {}
             override fun onRmsChanged(rmsdB: Float) {}
             override fun onBufferReceived(buffer: ByteArray?) {}
@@ -119,11 +142,11 @@ class WakeWordManager(
                     if (detected) return
                 }
 
-                // No wake word match — re-listen on the SAME recognizer
                 scheduleRelisten(RELISTEN_DELAY_MS)
             }
 
             override fun onError(error: Int) {
+                abandonAudioFocus()
                 when (error) {
                     SpeechRecognizer.ERROR_NO_MATCH,
                     SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> {
@@ -144,10 +167,6 @@ class WakeWordManager(
         }
     }
 
-    /**
-     * Recreate the recognizer if it enters a bad state.
-     * This is the only path that destroys and recreates.
-     */
     private fun recreateRecognizer() {
         if (!isActive) return
         try {
@@ -174,6 +193,7 @@ class WakeWordManager(
                 val remaining = normalized.removePrefix(variant).trim()
                 isActive = false
                 mainHandler.removeCallbacksAndMessages(null)
+                abandonAudioFocus()
                 try {
                     recognizer?.stopListening()
                     recognizer?.cancel()

@@ -26,10 +26,7 @@ export function setupBackgroundServiceListener(): void {
   }
   listenerSetUp = true;
 
-  // Pass null to NativeEventEmitter — we only use RCTDeviceEventEmitter globally.
-  // Passing the module caused it to call addListener/removeListeners on the
-  // native side, which interfered with audio system initialization.
-  const emitter = new NativeEventEmitter(null as any);
+  const emitter = new NativeEventEmitter(NativeModules.BackgroundServiceModule);
 
   emitter.addListener(
     'backgroundServiceStateChanged',
