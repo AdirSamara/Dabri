@@ -47,12 +47,12 @@ export function useSpeech(): UseSpeechReturn | null {
     const handleFinish = () => setVoiceStatus('idle');
     const handleCancel = () => setVoiceStatus('idle');
 
-    const subFinish = Tts.addEventListener('tts-finish', handleFinish) as any;
-    const subCancel = Tts.addEventListener('tts-cancel', handleCancel) as any;
+    Tts.addEventListener('tts-finish', handleFinish);
+    Tts.addEventListener('tts-cancel', handleCancel);
 
     return () => {
-      subFinish?.remove?.();
-      subCancel?.remove?.();
+      Tts.removeEventListener('tts-finish', handleFinish);
+      Tts.removeEventListener('tts-cancel', handleCancel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
