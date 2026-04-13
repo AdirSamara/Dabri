@@ -9,6 +9,7 @@ import {
   ToastAndroid,
   PermissionsAndroid,
   Platform,
+  Linking,
 } from 'react-native';
 import { useDabriStore } from '../store';
 import DabriServiceBridge, { ServicePermissionStatus } from '../native/DabriServiceBridge';
@@ -44,68 +45,68 @@ export function BackgroundServiceSettingsScreen(): React.JSX.Element {
         // If we were waiting for overlay permission from system settings, continue the flow
         if (pendingOverlayResume.current) {
           pendingOverlayResume.current = false;
-          const perms = await DabriServiceBridge?.checkServicePermissions();
-          if (perms?.overlay) {
-            continueAfterOverlay();
-          }
+          continueAfterOverlay();
         }
       }
     });
     return () => subscription.remove();
   }, [checkStatus]);
 
+  const startService = async () => {
+    try {
+      await DabriServiceBridge!.startService();
+      setBackgroundServiceEnabled(true);
+      setIsServiceRunning(true);
+      ToastAndroid.show('\u05D0\u05DE\u05D5\u05E8 \u05D4\u05D9\u05D9 \u05D3\u05D1\u05E8\u05D9!', ToastAndroid.LONG);
+      await checkStatus();
+    } catch (e) {
+      ToastAndroid.show('\u05E9\u05D2\u05D9\u05D0\u05D4 \u05D1\u05D4\u05E4\u05E2\u05DC\u05EA \u05D4\u05E9\u05D9\u05E8\u05D5\u05EA', ToastAndroid.SHORT);
+    }
+  };
+
   const continueAfterOverlay = async () => {
     if (!DabriServiceBridge) return;
-    ToastAndroid.show('\u2713 \u05D4\u05E8\u05E9\u05D0\u05EA \u05D4\u05E6\u05D2\u05D4 \u05DE\u05E2\u05DC \u05D0\u05E4\u05DC\u05D9\u05E7\u05E6\u05D9\u05D5\u05EA \u05D0\u05D5\u05E9\u05E8\u05D4', ToastAndroid.SHORT);
-
-    // Step 3: Notifications
     const perms = await DabriServiceBridge.checkServicePermissions();
+    if (!perms.overlay) return; // User didn't grant it
+
+    ToastAndroid.show('\u05D4\u05E8\u05E9\u05D0\u05EA \u05D4\u05E6\u05D2\u05D4 \u05DE\u05E2\u05DC \u05D0\u05E4\u05DC\u05D9\u05E7\u05E6\u05D9\u05D5\u05EA \u05D0\u05D5\u05E9\u05E8\u05D4', ToastAndroid.SHORT);
+
+    // Continue with notifications
     if (!perms.notifications) {
       await DabriServiceBridge.requestNotificationPermission();
+      ToastAndroid.show('\u05D4\u05E8\u05E9\u05D0\u05EA \u05D4\u05EA\u05E8\u05D0\u05D5\u05EA \u05D0\u05D5\u05E9\u05E8\u05D4', ToastAndroid.SHORT);
     }
-    ToastAndroid.show('\u2713 \u05D4\u05E8\u05E9\u05D0\u05EA \u05D4\u05EA\u05E8\u05D0\u05D5\u05EA \u05D0\u05D5\u05E9\u05E8\u05D4', ToastAndroid.SHORT);
 
-    // All good - start service
-    ToastAndroid.show('\u05D0\u05DE\u05D5\u05E8 \u05D4\u05D9\u05D9 \u05D3\u05D1\u05E8\u05D9! \uD83C\uDFA4', ToastAndroid.LONG);
-    await DabriServiceBridge.startService();
-    setBackgroundServiceEnabled(true);
-    setIsServiceRunning(true);
-    await checkStatus();
+    await startService();
   };
 
   const handleEnable = async () => {
     if (!DabriServiceBridge) return;
 
+    const perms = await DabriServiceBridge.checkServicePermissions();
+
     // Step 1: Microphone
-    const micGranted = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
-    if (!micGranted) {
+    if (!perms.microphone) {
       const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
       if (result !== PermissionsAndroid.RESULTS.GRANTED) return;
+      ToastAndroid.show('\u05D4\u05E8\u05E9\u05D0\u05EA \u05DE\u05D9\u05E7\u05E8\u05D5\u05E4\u05D5\u05DF \u05D0\u05D5\u05E9\u05E8\u05D4', ToastAndroid.SHORT);
     }
-    ToastAndroid.show('\u2713 \u05D4\u05E8\u05E9\u05D0\u05EA \u05DE\u05D9\u05E7\u05E8\u05D5\u05E4\u05D5\u05DF \u05D0\u05D5\u05E9\u05E8\u05D4', ToastAndroid.SHORT);
 
-    // Step 2: Overlay
-    const perms = await DabriServiceBridge.checkServicePermissions();
+    // Step 2: Overlay (opens system settings, user must come back)
     if (!perms.overlay) {
       pendingOverlayResume.current = true;
       await DabriServiceBridge.requestOverlayPermission();
-      // User needs to come back from settings - we'll recheck on resume
-      return;
+      return; // User will come back, continueAfterOverlay will fire
     }
-    ToastAndroid.show('\u2713 \u05D4\u05E8\u05E9\u05D0\u05EA \u05D4\u05E6\u05D2\u05D4 \u05DE\u05E2\u05DC \u05D0\u05E4\u05DC\u05D9\u05E7\u05E6\u05D9\u05D5\u05EA \u05D0\u05D5\u05E9\u05E8\u05D4', ToastAndroid.SHORT);
 
     // Step 3: Notifications
     if (!perms.notifications) {
       await DabriServiceBridge.requestNotificationPermission();
+      ToastAndroid.show('\u05D4\u05E8\u05E9\u05D0\u05EA \u05D4\u05EA\u05E8\u05D0\u05D5\u05EA \u05D0\u05D5\u05E9\u05E8\u05D4', ToastAndroid.SHORT);
     }
-    ToastAndroid.show('\u2713 \u05D4\u05E8\u05E9\u05D0\u05EA \u05D4\u05EA\u05E8\u05D0\u05D5\u05EA \u05D0\u05D5\u05E9\u05E8\u05D4', ToastAndroid.SHORT);
 
     // All good - start service
-    ToastAndroid.show('\u05D0\u05DE\u05D5\u05E8 \u05D4\u05D9\u05D9 \u05D3\u05D1\u05E8\u05D9! \uD83C\uDFA4', ToastAndroid.LONG);
-    await DabriServiceBridge.startService();
-    setBackgroundServiceEnabled(true);
-    setIsServiceRunning(true);
-    await checkStatus();
+    await startService();
   };
 
   const handleDisable = async () => {
@@ -184,12 +185,18 @@ export function BackgroundServiceSettingsScreen(): React.JSX.Element {
       borderBottomColor: theme.border,
       gap: 8,
     },
-    permIcon: { fontSize: 16 },
+    permDot: { width: 8, height: 8, borderRadius: 4 },
+    permStatus: {
+      fontSize: 13,
+      color: theme.textSecondary,
+      writingDirection: 'rtl',
+    },
     permLabel: {
       fontSize: 15,
       color: theme.text,
       writingDirection: 'rtl',
       textAlign: 'right',
+      flex: 1,
     },
   }), [theme]);
 
@@ -201,10 +208,34 @@ export function BackgroundServiceSettingsScreen(): React.JSX.Element {
     );
   }
 
+  const handlePermissionPress = async (key: 'microphone' | 'overlay' | 'notifications', granted: boolean) => {
+    if (granted) {
+      Linking.openSettings();
+      return;
+    }
+    if (!DabriServiceBridge) return;
+    switch (key) {
+      case 'microphone': {
+        const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+        if (result === PermissionsAndroid.RESULTS.GRANTED) {
+          ToastAndroid.show('\u05D4\u05E8\u05E9\u05D0\u05EA \u05DE\u05D9\u05E7\u05E8\u05D5\u05E4\u05D5\u05DF \u05D0\u05D5\u05E9\u05E8\u05D4', ToastAndroid.SHORT);
+        }
+        break;
+      }
+      case 'overlay':
+        await DabriServiceBridge.requestOverlayPermission();
+        break;
+      case 'notifications':
+        await DabriServiceBridge.requestNotificationPermission();
+        break;
+    }
+    await checkStatus();
+  };
+
   const permissionItems = permissions ? [
-    { label: '\u05DE\u05D9\u05E7\u05E8\u05D5\u05E4\u05D5\u05DF', granted: permissions.microphone },
-    { label: '\u05D4\u05E6\u05D2\u05D4 \u05DE\u05E2\u05DC \u05D0\u05E4\u05DC\u05D9\u05E7\u05E6\u05D9\u05D5\u05EA', granted: permissions.overlay },
-    { label: '\u05D4\u05EA\u05E8\u05D0\u05D5\u05EA', granted: permissions.notifications },
+    { key: 'microphone' as const, label: '\u05DE\u05D9\u05E7\u05E8\u05D5\u05E4\u05D5\u05DF', granted: permissions.microphone },
+    { key: 'overlay' as const, label: '\u05D4\u05E6\u05D2\u05D4 \u05DE\u05E2\u05DC \u05D0\u05E4\u05DC\u05D9\u05E7\u05E6\u05D9\u05D5\u05EA', granted: permissions.overlay },
+    { key: 'notifications' as const, label: '\u05D4\u05EA\u05E8\u05D0\u05D5\u05EA', granted: permissions.notifications },
   ] : [];
 
   return (
@@ -235,7 +266,7 @@ export function BackgroundServiceSettingsScreen(): React.JSX.Element {
       <View style={styles.card}>
         <Text style={styles.cardTitle}>{'\u05DE\u05D4 \u05D6\u05D4 \u05E9\u05D9\u05E8\u05D5\u05EA \u05E8\u05E7\u05E2?'}</Text>
         <Text style={styles.cardBody}>
-          {'\u05E9\u05D9\u05E8\u05D5\u05EA \u05D4\u05E8\u05E7\u05E2 \u05DE\u05D0\u05E4\u05E9\u05E8 \u05DC\u05D3\u05D1\u05E8\u05D9 \u05DC\u05D4\u05E7\u05E9\u05D9\u05D1 \u05DC\u05DE\u05D9\u05DC\u05EA \u05D4\u05D4\u05E4\u05E2\u05DC\u05D4 \u05D2\u05DD \u05DB\u05E9\u05D4\u05D0\u05E4\u05DC\u05D9\u05E7\u05E6\u05D9\u05D4 \u05E1\u05D2\u05D5\u05E8\u05D4.\n\u05DB\u05E9\u05EA\u05D2\u05D9\u05D3 "\u05D4\u05D9\u05D9 \u05D3\u05D1\u05E8\u05D9", \u05D1\u05D5\u05E2\u05D4 \u05E7\u05D8\u05E0\u05D4 \u05EA\u05D5\u05E4\u05D9\u05E2 \u05E2\u05DC \u05D4\u05DE\u05E1\u05DA \u05D5\u05EA\u05D5\u05DB\u05DC \u05DC\u05EA\u05EA \u05E4\u05E7\u05D5\u05D3\u05D5\u05EA \u05E7\u05D5\u05DC\u05D9\u05D5\u05EA.\n\n\u05D4\u05E9\u05D9\u05E8\u05D5\u05EA \u05E8\u05E5 \u05D1\u05E8\u05E7\u05E2 \u05E2\u05DD \u05E6\u05E8\u05D9\u05DB\u05EA \u05E1\u05D5\u05DC\u05DC\u05D4 \u05DE\u05D9\u05E0\u05D9\u05DE\u05DC\u05D9\u05EA.'}
+          {'\u05E9\u05D9\u05E8\u05D5\u05EA \u05D4\u05E8\u05E7\u05E2 \u05DE\u05E6\u05D9\u05D2 \u05D0\u05D9\u05D9\u05E7\u05D5\u05DF \u05E6\u05E3 \u05E2\u05DC \u05D4\u05DE\u05E1\u05DA \u05E9\u05DE\u05D0\u05E4\u05E9\u05E8 \u05DC\u05DA \u05DC\u05EA\u05EA \u05E4\u05E7\u05D5\u05D3\u05D5\u05EA \u05E7\u05D5\u05DC\u05D9\u05D5\u05EA \u05DE\u05DB\u05DC \u05DE\u05E7\u05D5\u05DD. \u05D0\u05DE\u05D5\u05E8 \'\u05D4\u05D9\u05D9 \u05D3\u05D1\u05E8\u05D9\' \u05D0\u05D5 \u05DC\u05D7\u05E5 \u05E2\u05DC \u05D4\u05D0\u05D9\u05D9\u05E7\u05D5\u05DF \u05DB\u05D3\u05D9 \u05DC\u05D4\u05EA\u05D7\u05D9\u05DC.\n\n\u05D4\u05E9\u05D9\u05E8\u05D5\u05EA \u05E8\u05E5 \u05D1\u05E8\u05E7\u05E2 \u05E2\u05DD \u05E6\u05E8\u05D9\u05DB\u05EA \u05E1\u05D5\u05DC\u05DC\u05D4 \u05DE\u05D9\u05E0\u05D9\u05DE\u05DC\u05D9\u05EA.'}
         </Text>
       </View>
 
@@ -244,10 +275,20 @@ export function BackgroundServiceSettingsScreen(): React.JSX.Element {
         <>
           <Text style={styles.sectionTitle}>{'\u05D4\u05E8\u05E9\u05D0\u05D5\u05EA'}</Text>
           {permissionItems.map((item) => (
-            <View key={item.label} style={styles.permRow}>
+            <TouchableOpacity
+              key={item.key}
+              style={styles.permRow}
+              activeOpacity={0.7}
+              onPress={() => handlePermissionPress(item.key, item.granted)}
+            >
               <Text style={styles.permLabel}>{item.label}</Text>
-              <Text style={styles.permIcon}>{item.granted ? '\u2705' : '\u274C'}</Text>
-            </View>
+              <Text style={styles.permStatus}>
+                {item.granted ? '\u05DE\u05D0\u05D5\u05E9\u05E8' : '\u05DC\u05D0 \u05DE\u05D0\u05D5\u05E9\u05E8'}
+              </Text>
+              <View style={[styles.permDot, {
+                backgroundColor: item.granted ? '#4CAF50' : '#F44336',
+              }]} />
+            </TouchableOpacity>
           ))}
         </>
       )}

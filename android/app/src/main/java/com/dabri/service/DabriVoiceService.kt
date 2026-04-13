@@ -120,7 +120,8 @@ class DabriVoiceService : Service() {
                 bubbleManager = FloatingBubbleManager(
                     context = this,
                     onTap = { onBubbleTapped() },
-                    onLongPress = { }
+                    onLongPress = { },
+                    onDismiss = { bubbleManager?.hide() }
                 )
                 bubbleManager?.show()
 
@@ -171,10 +172,12 @@ class DabriVoiceService : Service() {
         // Stop wake word detection (can't use mic simultaneously)
         wakeWordDetector?.stop()
 
-        // Show overlay and start voice interaction
-        bubbleManager?.updateState(PipelineState.RECOGNIZING)
-        overlayManager?.show()
-        pipelineController?.onWakeWordDetected()
+        // Delay to let the mic be released before STT starts
+        android.os.Handler(mainLooper).postDelayed({
+            bubbleManager?.updateState(PipelineState.RECOGNIZING)
+            overlayManager?.show()
+            pipelineController?.onWakeWordDetected()
+        }, 300)
     }
 
     private fun onBubbleTapped() {
@@ -192,8 +195,10 @@ class DabriVoiceService : Service() {
             PipelineState.IDLE, PipelineState.DEGRADED, PipelineState.PAUSED -> {
                 // Start voice interaction
                 wakeWordDetector?.stop()
-                overlayManager?.show()
-                pipelineController?.onBubbleTapped()
+                android.os.Handler(mainLooper).postDelayed({
+                    overlayManager?.show()
+                    pipelineController?.onBubbleTapped()
+                }, 300)
             }
             else -> {
                 // Ignore taps during PARSING, EXECUTING

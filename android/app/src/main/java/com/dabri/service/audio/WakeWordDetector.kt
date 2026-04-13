@@ -26,6 +26,7 @@ class WakeWordDetector(
     private var speechRecognizer: SpeechRecognizer? = null
     private var isRunning = false
     private var isListening = false
+    private var wakeWordFired = false
 
     /**
      * Wake phrases checked against partial/final results.
@@ -40,6 +41,7 @@ class WakeWordDetector(
     fun start() {
         if (isRunning) return
         isRunning = true
+        wakeWordFired = false
         Log.d(TAG, "Wake word detection starting (sensitivity=$sensitivity)")
         mainHandler.post { startListeningInternal() }
     }
@@ -107,7 +109,6 @@ class WakeWordDetector(
     private fun stopListeningInternal() {
         isListening = false
         try {
-            speechRecognizer?.stopListening()
             speechRecognizer?.cancel()
         } catch (e: Exception) {
             Log.w(TAG, "Error stopping SpeechRecognizer", e)
@@ -198,11 +199,13 @@ class WakeWordDetector(
 
         override fun onResults(results: Bundle?) {
             isListening = false
+            if (wakeWordFired) return
             val texts = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
             Log.d(TAG, "Final results: $texts")
             texts?.forEach { text ->
                 if (containsWakeWord(text)) {
                     Log.d(TAG, "Wake word detected in final result: \"$text\"")
+                    wakeWordFired = true
                     onWakeWordDetected()
                     return
                 }
@@ -212,11 +215,13 @@ class WakeWordDetector(
         }
 
         override fun onPartialResults(partialResults: Bundle?) {
+            if (wakeWordFired) return
             val texts = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
             Log.d(TAG, "Partial results: $texts")
             texts?.forEach { text ->
                 if (containsWakeWord(text)) {
                     Log.d(TAG, "Wake word detected in partial result: \"$text\"")
+                    wakeWordFired = true
                     // Stop current session before firing callback
                     stopListeningInternal()
                     onWakeWordDetected()

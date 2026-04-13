@@ -77,7 +77,7 @@ object ServiceNotificationHelper {
             PipelineState.PAUSED -> "דברי מושהה" to "ההקשבה מושהית"
             PipelineState.PHONE_CALL_PAUSED -> "דברי מושהה" to "מושהה בזמן שיחה"
             PipelineState.ERROR -> "דברי - שגיאה" to "אירעה שגיאה, מנסה שוב..."
-            PipelineState.DEGRADED -> "דברי - מצב ידני" to "לחץ על הבועה לפקודה קולית"
+            PipelineState.DEGRADED -> "דברי - אייקון צף" to "לחץ על הבועה לפקודה קולית"
         }
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)

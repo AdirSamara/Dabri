@@ -47,14 +47,18 @@ class SpeechRecognizerManager(
                     putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
                 }
 
-                recognizer?.startListening(intent)
-                isListening = true
+                // Small delay to ensure listener is fully registered before starting
+                mainHandler.postDelayed({
+                    recognizer?.startListening(intent)
+                    Log.d(TAG, "startListening() called")
+                    isListening = true
 
-                // Hard timeout
-                timeoutRunnable = Runnable { stop() }
-                mainHandler.postDelayed(timeoutRunnable!!, maxListeningMs)
+                    // Hard timeout
+                    timeoutRunnable = Runnable { stop() }
+                    mainHandler.postDelayed(timeoutRunnable!!, maxListeningMs)
 
-                Log.d(TAG, "Started listening ($locale)")
+                    Log.d(TAG, "Started listening ($locale)")
+                }, 100)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to start speech recognizer", e)
                 onError("Failed to start speech recognition: ${e.message}")
@@ -82,10 +86,13 @@ class SpeechRecognizerManager(
             timeoutRunnable = null
             try {
                 recognizer?.cancel()
+            } catch (_: Exception) { }
+            try {
                 recognizer?.destroy()
             } catch (_: Exception) { }
             recognizer = null
             isListening = false
+            Log.d(TAG, "SpeechRecognizerManager destroyed")
         }
     }
 
@@ -93,6 +100,7 @@ class SpeechRecognizerManager(
         return object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
                 Log.d(TAG, "Ready for speech")
+                Log.d(TAG, "Ready - microphone is active")
             }
 
             override fun onBeginningOfSpeech() {

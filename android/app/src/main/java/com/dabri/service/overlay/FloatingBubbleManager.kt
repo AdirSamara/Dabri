@@ -2,9 +2,12 @@ package com.dabri.service.overlay
 
 import android.animation.ValueAnimator
 import android.content.Context
+import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.Typeface
 import android.os.Build
 import android.util.DisplayMetrics
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -12,13 +15,15 @@ import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.ImageView
+import android.widget.TextView
 import com.dabri.R
 import com.dabri.service.PipelineState
 
 class FloatingBubbleManager(
     private val context: Context,
     private val onTap: () -> Unit,
-    private val onLongPress: () -> Unit
+    private val onLongPress: () -> Unit,
+    private val onDismiss: () -> Unit = {}
 ) {
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private var bubbleView: ImageView? = null
@@ -33,6 +38,12 @@ class FloatingBubbleManager(
     private var initialTouchX = 0f
     private var initialTouchY = 0f
     private var isDragging = false
+
+    // Dismiss zone
+    private var dismissZoneView: View? = null
+    private var isDismissZoneShowing = false
+    private val dismissZoneSizePx = dpToPx(48)
+    private val dismissThresholdPx = dpToPx(80)
 
     private val layoutParams: WindowManager.LayoutParams by lazy {
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -83,6 +94,7 @@ class FloatingBubbleManager(
 
     fun hide() {
         if (!isShowing) return
+        hideDismissZone()
         try {
             bubbleView?.let { windowManager.removeView(it) }
         } catch (_: Exception) { }
@@ -155,6 +167,7 @@ class FloatingBubbleManager(
 
                 if (!isDragging && (Math.abs(dx) > touchSlop || Math.abs(dy) > touchSlop)) {
                     isDragging = true
+                    showDismissZone()
                 }
 
                 if (isDragging) {
@@ -170,12 +183,87 @@ class FloatingBubbleManager(
                 if (!isDragging) {
                     onTap()
                 } else {
-                    snapToEdge()
+                    if (isBubbleInDismissZone()) {
+                        hideDismissZone()
+                        onDismiss()
+                    } else {
+                        hideDismissZone()
+                        snapToEdge()
+                    }
                 }
                 return true
             }
         }
         return false
+    }
+
+    private fun showDismissZone() {
+        if (isDismissZoneShowing) return
+        try {
+            val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+            }
+
+            val view = TextView(context).apply {
+                text = "\u2715"
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+                setTextColor(Color.WHITE)
+                typeface = Typeface.DEFAULT_BOLD
+                gravity = Gravity.CENTER
+                val bg = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.OVAL
+                    setColor(Color.parseColor("#99000000"))
+                }
+                background = bg
+            }
+
+            val params = WindowManager.LayoutParams(
+                dismissZoneSizePx,
+                dismissZoneSizePx,
+                type,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+                y = dpToPx(48)
+            }
+
+            windowManager.addView(view, params)
+            dismissZoneView = view
+            isDismissZoneShowing = true
+        } catch (e: Exception) {
+            android.util.Log.e("FloatingBubble", "Failed to show dismiss zone", e)
+        }
+    }
+
+    private fun hideDismissZone() {
+        if (!isDismissZoneShowing) return
+        try {
+            dismissZoneView?.let { windowManager.removeView(it) }
+        } catch (_: Exception) { }
+        dismissZoneView = null
+        isDismissZoneShowing = false
+    }
+
+    private fun isBubbleInDismissZone(): Boolean {
+        val metrics = getScreenMetrics()
+        val bubbleCenterX = layoutParams.x + bubbleSizePx / 2
+        val bubbleCenterY = layoutParams.y + bubbleSizePx / 2
+
+        // Dismiss zone is at bottom center
+        val dismissCenterX = metrics.widthPixels / 2
+        val dismissCenterY = metrics.heightPixels - dpToPx(48) - dismissZoneSizePx / 2
+
+        val dx = bubbleCenterX - dismissCenterX
+        val dy = bubbleCenterY - dismissCenterY
+        val distance = Math.sqrt((dx * dx + dy * dy).toDouble())
+
+        return distance < dismissThresholdPx
     }
 
     private fun snapToEdge() {

@@ -50,7 +50,7 @@ class VoiceOverlayManager(
             }
 
             val params = WindowManager.LayoutParams(
-                dpToPx(280),
+                dpToPx(340),
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 type,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
@@ -144,7 +144,7 @@ class VoiceOverlayManager(
 
         val container = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dpToPx(16), dpToPx(16), dpToPx(16), dpToPx(16))
+            setPadding(dpToPx(20), dpToPx(20), dpToPx(20), dpToPx(20))
             val bg = android.graphics.drawable.GradientDrawable().apply {
                 setColor(bgColor)
                 cornerRadius = dpToPx(16).toFloat()
@@ -227,7 +227,7 @@ class VoiceOverlayManager(
             setTextColor(textColor)
             textDirection = View.TEXT_DIRECTION_RTL
             textAlignment = View.TEXT_ALIGNMENT_VIEW_START
-            maxLines = 6
+            maxLines = 10
             visibility = View.VISIBLE
         }
         transcriptText = transcript
