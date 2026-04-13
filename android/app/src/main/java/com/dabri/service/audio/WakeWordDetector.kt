@@ -19,7 +19,7 @@ class WakeWordDetector(
 ) {
     companion object {
         private const val TAG = "WakeWordDetector"
-        private const val RESTART_DELAY_MS = 500L
+        private const val RESTART_DELAY_MS = 1000L
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())

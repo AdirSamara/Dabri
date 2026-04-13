@@ -35,15 +35,23 @@ class VoicePipelineController(
     private var currentTranscript = ""
 
     init {
-        audioFocusManager = AudioFocusManager(context)
-        ttsManager = TextToSpeechManager(
-            context,
-            onDone = { onTtsDone() },
-            onError = { error ->
-                Log.e(TAG, "TTS error: $error")
-                onTtsDone()
-            }
-        )
+        try {
+            audioFocusManager = AudioFocusManager(context)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to init audio focus", e)
+        }
+        try {
+            ttsManager = TextToSpeechManager(
+                context,
+                onDone = { onTtsDone() },
+                onError = { error ->
+                    Log.e(TAG, "TTS error: $error")
+                    onTtsDone()
+                }
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to init TTS", e)
+        }
     }
 
     fun onWakeWordDetected() {
@@ -143,11 +151,19 @@ class VoicePipelineController(
 
                 // Speak result
                 transition(PipelineState.SPEAKING, result.message)
-                ttsManager?.speak(result.message)
+                if (ttsManager != null) {
+                    ttsManager?.speak(result.message)
+                } else {
+                    onTtsDone()
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Pipeline error", e)
                 transition(PipelineState.SPEAKING, "אירעה שגיאה. נסה שוב.")
-                ttsManager?.speak("אירעה שגיאה. נסה שוב.")
+                if (ttsManager != null) {
+                    ttsManager?.speak("אירעה שגיאה. נסה שוב.")
+                } else {
+                    onTtsDone()
+                }
             }
         }
     }

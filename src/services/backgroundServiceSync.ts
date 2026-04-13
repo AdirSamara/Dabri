@@ -12,8 +12,6 @@ function getServiceSettings(): Record<string, any> {
     silenceTimeout: state.silenceTimeout,
     wakeWordSensitivity: state.wakeWordSensitivity,
     isDarkMode: state.isDarkMode,
-    autoStartOnBoot: state.autoStartOnBoot,
-    showOnLockScreen: state.showOnLockScreen,
     contactAliases: JSON.stringify(state.contactAliases),
   };
 }
@@ -42,8 +40,7 @@ export function setupServiceSettingsSync(): () => void {
   const relevantKeys = [
     'geminiApiKey', 'ttsSpeed', 'preferredNavApp',
     'homeAddress', 'workAddress', 'silenceTimeout',
-    'wakeWordSensitivity', 'isDarkMode', 'autoStartOnBoot',
-    'showOnLockScreen', 'contactAliases',
+    'wakeWordSensitivity', 'isDarkMode', 'contactAliases',
   ] as const;
 
   const unsubscribe = useDabriStore.subscribe(

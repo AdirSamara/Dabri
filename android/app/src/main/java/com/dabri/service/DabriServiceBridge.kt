@@ -1,12 +1,8 @@
 package com.dabri.service
 
 import android.Manifest
-import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
-import android.os.PowerManager
-import android.provider.Settings
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.dabri.service.config.ServicePreferences
@@ -75,11 +71,6 @@ class DabriServiceBridge(private val reactContext: ReactApplicationContext) :
         } else true
         map.putBoolean("notifications", hasNotifications)
 
-        // 4. Battery optimization exemption
-        val pm = reactContext.getSystemService(PowerManager::class.java)
-        val isBatteryOptExempt = pm?.isIgnoringBatteryOptimizations(reactContext.packageName) ?: false
-        map.putBoolean("batteryOptimization", isBatteryOptExempt)
-
         promise.resolve(map)
     }
 
@@ -87,20 +78,6 @@ class DabriServiceBridge(private val reactContext: ReactApplicationContext) :
     fun requestOverlayPermission(promise: Promise) {
         OverlayPermissionHelper.requestOverlayPermission(reactContext)
         promise.resolve(true)
-    }
-
-    @ReactMethod
-    fun requestBatteryOptimizationExemption(promise: Promise) {
-        try {
-            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                data = Uri.parse("package:${reactContext.packageName}")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            reactContext.startActivity(intent)
-            promise.resolve(true)
-        } catch (e: Exception) {
-            promise.reject("BATTERY_OPT_ERROR", e.message, e)
-        }
     }
 
     @ReactMethod
@@ -118,39 +95,6 @@ class DabriServiceBridge(private val reactContext: ReactApplicationContext) :
             )
         }
         promise.resolve(true)
-    }
-
-    @ReactMethod
-    fun isSamsungDevice(promise: Promise) {
-        promise.resolve(Build.MANUFACTURER.equals("samsung", ignoreCase = true))
-    }
-
-    @ReactMethod
-    fun openSamsungBatterySettings(promise: Promise) {
-        if (Build.MANUFACTURER.equals("samsung", ignoreCase = true)) {
-            try {
-                val intent = Intent().apply {
-                    component = android.content.ComponentName(
-                        "com.samsung.android.lool",
-                        "com.samsung.android.sm.battery.ui.BatteryActivity"
-                    )
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                reactContext.startActivity(intent)
-                promise.resolve(true)
-                return
-            } catch (_: Exception) { }
-        }
-        // Fallback to standard battery settings
-        try {
-            val intent = Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            reactContext.startActivity(intent)
-            promise.resolve(true)
-        } catch (e: Exception) {
-            promise.reject("SETTINGS_ERROR", e.message, e)
-        }
     }
 
     @ReactMethod
@@ -186,12 +130,6 @@ class DabriServiceBridge(private val reactContext: ReactApplicationContext) :
             }
             if (settings.hasKey("isDarkMode")) {
                 prefs.isDarkMode = settings.getBoolean("isDarkMode")
-            }
-            if (settings.hasKey("autoStartOnBoot")) {
-                prefs.autoStartOnBoot = settings.getBoolean("autoStartOnBoot")
-            }
-            if (settings.hasKey("showOnLockScreen")) {
-                prefs.showOnLockScreen = settings.getBoolean("showOnLockScreen")
             }
             if (settings.hasKey("contactAliases")) {
                 val aliasStr = settings.getString("contactAliases") ?: "{}"

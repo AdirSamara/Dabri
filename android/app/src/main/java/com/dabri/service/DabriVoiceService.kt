@@ -3,18 +3,13 @@ package com.dabri.service
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.os.Build
 import android.os.IBinder
-import android.provider.Settings
 import android.telephony.PhoneStateListener
 import android.telephony.TelephonyCallback
 import android.telephony.TelephonyManager
 import android.util.Log
 import androidx.core.content.ContextCompat
-import com.dabri.service.audio.AudioFocusManager
-import com.dabri.service.audio.SpeechRecognizerManager
-import com.dabri.service.audio.TextToSpeechManager
 import com.dabri.service.audio.WakeWordDetector
 import com.dabri.service.config.ServicePreferences
 import com.dabri.service.overlay.FloatingBubbleManager
@@ -56,7 +51,6 @@ class DabriVoiceService : Service() {
     private var bubbleManager: FloatingBubbleManager? = null
     private var overlayManager: VoiceOverlayManager? = null
     private var wakeWordDetector: WakeWordDetector? = null
-    private var audioFocusManager: AudioFocusManager? = null
     private var isListeningPaused = false
 
     // Phone state
@@ -109,59 +103,65 @@ class DabriVoiceService : Service() {
     }
 
     private fun initializeComponents() {
-        audioFocusManager = AudioFocusManager(this)
-
-        // Initialize voice pipeline
-        pipelineController = VoicePipelineController(
-            context = this,
-            preferences = preferences,
-            onStateChanged = { state, transcript -> onPipelineStateChanged(state, transcript) }
-        )
-
-        // Initialize floating bubble (if overlay permission granted)
-        if (OverlayPermissionHelper.canDrawOverlays(this)) {
-            bubbleManager = FloatingBubbleManager(
+        // Pipeline controller (STT, TTS, Gemini)
+        try {
+            pipelineController = VoicePipelineController(
                 context = this,
                 preferences = preferences,
-                onTap = { onBubbleTapped() },
-                onLongPress = { /* future: show dismiss zone */ }
+                onStateChanged = { state, transcript -> onPipelineStateChanged(state, transcript) }
             )
-            bubbleManager?.show()
-
-            overlayManager = VoiceOverlayManager(
-                context = this,
-                preferences = preferences,
-                onClose = { pipelineController?.cancel() },
-                onMicTap = { onBubbleTapped() }
-            )
-        } else {
-            Log.w(TAG, "Overlay permission not granted, running without bubble")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to init pipeline", e)
         }
 
-        // Initialize wake word detector
-        initializeWakeWord()
+        // Floating bubble
+        try {
+            if (OverlayPermissionHelper.canDrawOverlays(this)) {
+                bubbleManager = FloatingBubbleManager(
+                    context = this,
+                    onTap = { onBubbleTapped() },
+                    onLongPress = { }
+                )
+                bubbleManager?.show()
 
-        // Register phone state listener
-        registerPhoneStateListener()
+                overlayManager = VoiceOverlayManager(
+                    context = this,
+                    onClose = { pipelineController?.cancel() },
+                    onMicTap = { onBubbleTapped() }
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to init overlay", e)
+        }
+
+        // Wake word detector
+        try {
+            initializeWakeWord()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to init wake word", e)
+            updateState(PipelineState.DEGRADED)
+        }
+
+        // Phone state listener
+        try {
+            registerPhoneStateListener()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to register phone state listener", e)
+        }
     }
 
     private fun initializeWakeWord() {
-        try {
-            wakeWordDetector = WakeWordDetector(
-                context = this,
-                sensitivity = preferences.wakeWordSensitivity,
-                onWakeWordDetected = { onWakeWordDetected() },
-                onError = { error ->
-                    Log.e(TAG, "Wake word error: $error")
-                    updateState(PipelineState.DEGRADED)
-                }
-            )
-            wakeWordDetector?.start()
-            updateState(PipelineState.IDLE)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to initialize wake word detector", e)
-            updateState(PipelineState.DEGRADED)
-        }
+        wakeWordDetector = WakeWordDetector(
+            context = this,
+            sensitivity = preferences.wakeWordSensitivity,
+            onWakeWordDetected = { onWakeWordDetected() },
+            onError = { error ->
+                Log.e(TAG, "Wake word error: $error")
+                updateState(PipelineState.DEGRADED)
+            }
+        )
+        wakeWordDetector?.start()
+        updateState(PipelineState.IDLE)
     }
 
     private fun onWakeWordDetected() {
@@ -351,7 +351,6 @@ class DabriVoiceService : Service() {
         overlayManager = null
         bubbleManager?.hide()
         bubbleManager = null
-        audioFocusManager = null
 
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()

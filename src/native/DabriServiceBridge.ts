@@ -4,7 +4,6 @@ export interface ServicePermissionStatus {
   microphone: boolean;
   overlay: boolean;
   notifications: boolean;
-  batteryOptimization: boolean;
 }
 
 interface DabriServiceBridgeInterface {
@@ -13,10 +12,7 @@ interface DabriServiceBridgeInterface {
   isServiceRunning(): Promise<boolean>;
   checkServicePermissions(): Promise<ServicePermissionStatus>;
   requestOverlayPermission(): Promise<boolean>;
-  requestBatteryOptimizationExemption(): Promise<boolean>;
   requestNotificationPermission(): Promise<boolean>;
-  isSamsungDevice(): Promise<boolean>;
-  openSamsungBatterySettings(): Promise<boolean>;
   syncSettings(settings: Record<string, any>): Promise<boolean>;
 }
 

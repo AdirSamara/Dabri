@@ -1,6 +1,7 @@
 package com.dabri.service.overlay
 
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Typeface
@@ -16,11 +17,9 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import com.dabri.service.PipelineState
-import com.dabri.service.config.ServicePreferences
 
 class VoiceOverlayManager(
     private val context: Context,
-    private val preferences: ServicePreferences,
     private val onClose: () -> Unit,
     private val onMicTap: () -> Unit
 ) {
@@ -95,6 +94,7 @@ class VoiceOverlayManager(
     }
 
     fun updateTranscript(text: String) {
+        if (!isShowing) return
         transcriptText?.post {
             transcriptText?.text = text
             transcriptText?.visibility = View.VISIBLE
@@ -102,6 +102,7 @@ class VoiceOverlayManager(
     }
 
     fun updateResult(text: String) {
+        if (!isShowing) return
         resultText?.post {
             resultText?.text = text
             resultText?.visibility = View.VISIBLE
@@ -109,8 +110,9 @@ class VoiceOverlayManager(
     }
 
     fun updateStatus(state: PipelineState) {
+        if (!isShowing) return
         handler.post {
-            val isDark = preferences.isDarkMode
+            val isDark = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
 
             val (dotColor, label) = when (state) {
                 PipelineState.RECOGNIZING -> Color.parseColor("#C62828") to "מקשיב..."
@@ -134,7 +136,7 @@ class VoiceOverlayManager(
     }
 
     private fun buildOverlayView(): View {
-        val isDark = preferences.isDarkMode
+        val isDark = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         val bgColor = if (isDark) Color.parseColor("#1E1E1E") else Color.WHITE
         val textColor = if (isDark) Color.parseColor("#E0E0E0") else Color.parseColor("#2C3E50")
         val secondaryTextColor = if (isDark) Color.parseColor("#999999") else Color.parseColor("#7F8C8D")

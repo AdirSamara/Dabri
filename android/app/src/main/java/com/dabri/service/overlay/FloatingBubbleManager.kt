@@ -14,11 +14,9 @@ import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.ImageView
 import com.dabri.R
 import com.dabri.service.PipelineState
-import com.dabri.service.config.ServicePreferences
 
 class FloatingBubbleManager(
     private val context: Context,
-    private val preferences: ServicePreferences,
     private val onTap: () -> Unit,
     private val onLongPress: () -> Unit
 ) {
@@ -54,17 +52,10 @@ class FloatingBubbleManager(
         ).apply {
             gravity = Gravity.TOP or Gravity.START
 
-            // Restore saved position or use default
-            val savedX = preferences.bubbleX
-            val savedY = preferences.bubbleY
-            if (savedX >= 0 && savedY >= 0) {
-                x = savedX
-                y = savedY
-            } else {
-                val metrics = getScreenMetrics()
-                x = metrics.widthPixels - bubbleSizePx - dpToPx(8)
-                y = metrics.heightPixels / 3
-            }
+            // Default position: right edge, 1/3 down
+            val metrics = getScreenMetrics()
+            x = metrics.widthPixels - bubbleSizePx - dpToPx(8)
+            y = metrics.heightPixels / 3
         }
     }
 
@@ -100,6 +91,7 @@ class FloatingBubbleManager(
     }
 
     fun updateState(state: PipelineState) {
+        if (!isShowing) return
         bubbleView?.let { view ->
             view.post {
                 when (state) {
@@ -179,9 +171,6 @@ class FloatingBubbleManager(
                     onTap()
                 } else {
                     snapToEdge()
-                    // Save position
-                    preferences.bubbleX = layoutParams.x
-                    preferences.bubbleY = layoutParams.y
                 }
                 return true
             }

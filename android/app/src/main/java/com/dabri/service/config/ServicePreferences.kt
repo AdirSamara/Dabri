@@ -43,14 +43,6 @@ class ServicePreferences(context: Context) {
         get() = prefs.getFloat("wake_word_sensitivity", 0.5f)
         set(value) = prefs.edit().putFloat("wake_word_sensitivity", value).apply()
 
-    var autoStartOnBoot: Boolean
-        get() = prefs.getBoolean("auto_start_on_boot", false)
-        set(value) = prefs.edit().putBoolean("auto_start_on_boot", value).apply()
-
-    var showOnLockScreen: Boolean
-        get() = prefs.getBoolean("show_on_lock_screen", false)
-        set(value) = prefs.edit().putBoolean("show_on_lock_screen", value).apply()
-
     var bubbleEnabled: Boolean
         get() = prefs.getBoolean("bubble_enabled", true)
         set(value) = prefs.edit().putBoolean("bubble_enabled", value).apply()
@@ -58,14 +50,6 @@ class ServicePreferences(context: Context) {
     var isDarkMode: Boolean
         get() = prefs.getBoolean("is_dark_mode", false)
         set(value) = prefs.edit().putBoolean("is_dark_mode", value).apply()
-
-    var bubbleX: Int
-        get() = prefs.getInt("bubble_x", -1)
-        set(value) = prefs.edit().putInt("bubble_x", value).apply()
-
-    var bubbleY: Int
-        get() = prefs.getInt("bubble_y", -1)
-        set(value) = prefs.edit().putInt("bubble_y", value).apply()
 
     fun getContactAliases(): Map<String, String> {
         val json = prefs.getString("contact_aliases", "{}") ?: "{}"
