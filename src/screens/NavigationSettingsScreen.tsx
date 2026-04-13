@@ -163,7 +163,7 @@ export function NavigationSettingsScreen(): React.JSX.Element {
           autoCorrect={false}
         />
         <Text style={styles.inputHint}>
-          כשתאמר "נווט הביתה" הניווט יפתח לכתובת זו
+          אופציונלי — אם לא תגדיר, הניווט ישתמש בכתובת השמורה באפליקציית הניווט
         </Text>
       </View>
 
@@ -180,7 +180,7 @@ export function NavigationSettingsScreen(): React.JSX.Element {
           autoCorrect={false}
         />
         <Text style={styles.inputHint}>
-          כשתאמר "נווט לעבודה" הניווט יפתח לכתובת זו
+          אופציונלי — אם לא תגדיר, הניווט ישתמש בכתובת השמורה באפליקציית הניווט
         </Text>
       </View>
     </ScrollView>

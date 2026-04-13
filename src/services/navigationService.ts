@@ -24,19 +24,18 @@ async function handleNavigate(intent: ParsedIntent): Promise<ActionResult> {
   let isHome = false;
   let isWork = false;
 
-  // Resolve home/work keywords to stored addresses
+  // Resolve home/work keywords — use Dabri's stored address if available,
+  // otherwise let the nav app resolve from its own saved favorites
   if (HOME_KEYWORDS.some(kw => destination === kw || destination.includes(kw))) {
     isHome = true;
-    if (!store.homeAddress) {
-      return { success: false, message: 'לא הוגדרה כתובת בית. ניתן להגדיר בהגדרות הניווט' };
+    if (store.homeAddress) {
+      resolvedDest = store.homeAddress;
     }
-    resolvedDest = store.homeAddress;
   } else if (WORK_KEYWORDS.some(kw => destination === kw || destination.includes(kw))) {
     isWork = true;
-    if (!store.workAddress) {
-      return { success: false, message: 'לא הוגדרה כתובת עבודה. ניתן להגדיר בהגדרות הניווט' };
+    if (store.workAddress) {
+      resolvedDest = store.workAddress;
     }
-    resolvedDest = store.workAddress;
   }
 
   // Determine preferred nav app (explicit request overrides store setting)
@@ -69,7 +68,11 @@ async function handleNavigate(intent: ParsedIntent): Promise<ActionResult> {
       if (app === 'google_maps') {
         const installed = await NavigationBridge.isAppInstalled(GMAPS_PACKAGE);
         if (!installed) continue;
-        await NavigationBridge.navigateWithGoogleMaps(resolvedDest);
+        // Google Maps resolves "home"/"work" from its own saved places
+        const gmapsDest = (isHome && !store.homeAddress) ? 'home'
+                        : (isWork && !store.workAddress) ? 'work'
+                        : resolvedDest;
+        await NavigationBridge.navigateWithGoogleMaps(gmapsDest);
         return { success: true, message: `מנווט ל${resolvedDest} דרך Google Maps` };
       }
 
